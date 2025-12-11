@@ -1,0 +1,87 @@
+{
+  "status": "OPTIMAL",
+  "objective_value": 8.0,
+  "schedule": [
+    {
+      "patient_id": "P2",
+      "therapist_id": "T2",
+      "room_id": "R2",
+      "specialty": "occupational_therapy",
+      "day": "Monday",
+      "time": "10:00-11:00"
+    },
+    {
+      "patient_id": "P1",
+      "therapist_id": "T1",
+      "room_id": "R2",
+      "specialty": "phonoaudiology",
+      "day": "Monday",
+      "time": "16:00-17:00"
+    },
+    {
+      "patient_id": "P3",
+      "therapist_id": "T1",
+      "room_id": "R2",
+      "specialty": "phonoaudiology",
+      "day": "Tuesday",
+      "time": "15:00-16:00"
+    },
+    {
+      "patient_id": "P1",
+      "therapist_id": "T1",
+      "room_id": "R2",
+      "specialty": "phonoaudiology",
+      "day": "Tuesday",
+      "time": "17:00-18:00"
+    },
+    {
+      "patient_id": "P1",
+      "therapist_id": "T1",
+      "room_id": "R2",
+      "specialty": "phonoaudiology",
+      "day": "Wednesday",
+      "time": "14:00-15:00"
+    },
+    {
+      "patient_id": "P1",
+      "therapist_id": "T3",
+      "room_id": "R1",
+      "specialty": "kinesiology",
+      "day": "Wednesday",
+      "time": "17:00-18:00"
+    },
+    {
+      "patient_id": "P1",
+      "therapist_id": "T1",
+      "room_id": "R2",
+      "specialty": "phonoaudiology",
+      "day": "Thursday",
+      "time": "14:00-15:00"
+    },
+    {
+      "patient_id": "P3",
+      "therapist_id": "T1",
+      "room_id": "R2",
+      "specialty": "phonoaudiology",
+      "day": "Thursday",
+      "time": "17:00-18:00"
+    },
+    {
+      "patient_id": "P1",
+      "therapist_id": "T3",
+      "room_id": "R1",
+      "specialty": "kinesiology",
+      "day": "Thursday",
+      "time": "17:00-18:00"
+    },
+    {
+      "patient_id": "P2",
+      "therapist_id": "T2",
+      "room_id": "R2",
+      "specialty": "occupational_therapy",
+      "day": "Friday",
+      "time": "10:00-11:00"
+    }
+  ],
+  "diagnostics": []
+}

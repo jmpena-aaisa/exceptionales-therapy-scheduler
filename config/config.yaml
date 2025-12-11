@@ -1,0 +1,19 @@
+defaults:
+  - objectives: default_objectives
+  - _self_
+
+data:
+  instance_path: data/schedule_params/sample_instance.json
+
+solver:
+  time_limit: 30.0  # seconds
+  log_search_progress: true
+
+output:
+  path: output/schedule.json
+  excel_path: output/schedule.xlsx
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null

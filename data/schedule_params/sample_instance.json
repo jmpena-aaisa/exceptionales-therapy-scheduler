@@ -1,0 +1,176 @@
+{
+  "therapists": [
+    {
+      "id": "T1",
+      "specialties": [
+        "kinesiology",
+        "phonoaudiology"
+      ],
+      "availability": {
+        "Monday": [
+          "08:00-13:00",
+          "14:00-18:00"
+        ],
+        "Tuesday": [
+          "14:00-18:00"
+        ],
+        "Wednesday": [
+          "08:00-13:00",
+          "14:00-18:00"
+        ],
+        "Thursday": [
+          "08:00-13:00",
+          "14:00-18:00"
+        ],
+        "Friday": [
+          "08:00-13:00",
+          "14:00-18:00"
+        ]
+      }
+    },
+    {
+      "id": "T2",
+      "specialties": [
+        "occupational_therapy"
+      ],
+      "availability": {
+        "Monday": [
+          "08:00-13:00",
+          "14:00-18:00"
+        ],
+        "Tuesday": [
+          "08:00-12:00"
+        ],
+        "Thursday": [
+          "14:00-18:00"
+        ],
+        "Friday": [
+          "08:00-12:00"
+        ]
+      }
+    },
+    {
+      "id": "T3",
+      "specialties": [
+        "kinesiology"
+      ],
+      "availability": {
+        "Monday": [
+          "08:00-13:00"
+        ],
+        "Wednesday": [
+          "08:00-13:00",
+          "14:00-18:00"
+        ],
+        "Thursday": [
+          "14:00-18:00"
+        ],
+        "Friday": [
+          "08:00-12:00"
+        ]
+      }
+    }
+  ],
+  "patients": [
+    {
+      "id": "P1",
+      "requirements": {
+        "kinesiology": 2,
+        "phonoaudiology": 4
+      },
+      "no_same_day_specialties": [
+        "phonoaudiology",
+        "kinesiology"
+      ],
+      "availability": {
+        "Monday": [
+          "14:00-18:00"
+        ],
+        "Tuesday": [
+          "08:00-18:00"
+        ],
+        "Wednesday": [
+          "08:00-18:00"
+        ],
+        "Thursday": [
+          "08:00-18:00"
+        ],
+        "Friday": []
+      },
+      "max_continuous_hours": 2
+    },
+    {
+      "id": "P2",
+      "requirements": {
+        "occupational_therapy": 2
+      },
+      "no_same_day_specialties": [
+        "occupational_therapy"
+      ],
+      "availability": {
+        "Monday": [
+          "08:00-12:00"
+        ],
+        "Wednesday": [
+          "08:00-12:00",
+          "14:00-18:00"
+        ],
+        "Friday": [
+          "08:00-12:00",
+          "14:00-18:00"
+        ]
+      },
+      "max_continuous_hours": 3
+    },
+    {
+      "id": "P3",
+      "requirements": {
+        "phonoaudiology": 2
+      },
+      "no_same_day_specialties": [
+        "phonoaudiology"
+      ],
+      "availability": {
+        "Tuesday": [
+          "08:00-18:00"
+        ],
+        "Thursday": [
+          "08:00-18:00"
+        ]
+      },
+      "max_continuous_hours": 3
+    }
+  ],
+  "rooms": [
+    {
+      "id": "R1",
+      "specialties": [
+        "kinesiology",
+        "phonoaudiology"
+      ],
+      "capacity": 1
+    },
+    {
+      "id": "R2",
+      "specialties": [
+        "phonoaudiology",
+        "occupational_therapy"
+      ],
+      "capacity": 4
+    }
+  ],
+  "specialties": {
+    "kinesiology": {
+      "min_quorum": 1,
+      "max_quorum": 1
+    },
+    "phonoaudiology": {
+      "min_quorum": 1,
+      "max_quorum": 4
+    },
+    "occupational_therapy": {
+      "min_quorum": 1,
+      "max_quorum": 2
+    }
+  }
+}
