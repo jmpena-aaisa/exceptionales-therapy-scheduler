@@ -74,10 +74,16 @@ def range_to_block(range_str: str) -> int:
 def intervals_to_block_set(intervals: Iterable[str]) -> Set[int]:
     """Convert a list of interval strings to the set of hour block indices they cover."""
     interval_objs = [Interval.parse(i) for i in intervals]
-    return {b for b in BLOCKS if any(interval.contains_block(b) for interval in interval_objs)}
+    return {
+        b
+        for b in BLOCKS
+        if any(interval.contains_block(b) for interval in interval_objs)
+    }
 
 
-def availability_to_blocks_per_day(avail_map: Dict[str, Sequence[str]]) -> Dict[str, Set[int]]:
+def availability_to_blocks_per_day(
+    avail_map: Dict[str, Sequence[str]],
+) -> Dict[str, Set[int]]:
     """Normalize availability dict of day -> intervals into day -> blocks set."""
     normalized: Dict[str, Set[int]] = {}
     for day, intervals in avail_map.items():

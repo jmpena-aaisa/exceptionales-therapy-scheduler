@@ -28,7 +28,13 @@ def aggregate_sessions(schedule: Iterable[Dict[str, str]]) -> List[Session]:
     grouped: Dict[Tuple[str, str, str, int, str], Session] = {}
     for item in schedule:
         block = range_to_block(item["time"])
-        key = (item["therapist_id"], item["room_id"], item["day"], block, item["specialty"])
+        key = (
+            item["therapist_id"],
+            item["room_id"],
+            item["day"],
+            block,
+            item["specialty"],
+        )
         if key not in grouped:
             grouped[key] = Session(
                 therapist_id=item["therapist_id"],
@@ -91,7 +97,11 @@ def _add_therapist_tab(wb: Workbook, sessions: List[Session]) -> None:
             ws.cell(row=row_idx, column=2, value=block_to_range(block))
             for col_idx, tid in enumerate(therapist_ids, start=3):
                 session = next(
-                    (s for s in sessions if s.day == day and s.block == block and s.therapist_id == tid),
+                    (
+                        s
+                        for s in sessions
+                        if s.day == day and s.block == block and s.therapist_id == tid
+                    ),
                     None,
                 )
                 if session:
@@ -115,7 +125,11 @@ def _add_patient_tab(wb: Workbook, sessions: List[Session]) -> None:
             ws.cell(row=row_idx, column=2, value=block_to_range(block))
             for col_idx, pid in enumerate(patient_ids, start=3):
                 session = next(
-                    (s for s in sessions if s.day == day and s.block == block and pid in s.patients),
+                    (
+                        s
+                        for s in sessions
+                        if s.day == day and s.block == block and pid in s.patients
+                    ),
                     None,
                 )
                 if session:

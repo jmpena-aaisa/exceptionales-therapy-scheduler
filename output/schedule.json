@@ -19,35 +19,35 @@
       "time": "16:00-17:00"
     },
     {
+      "patient_id": "P1",
+      "therapist_id": "T1",
+      "room_id": "R2",
+      "specialty": "phonoaudiology",
+      "day": "Tuesday",
+      "time": "16:00-17:00"
+    },
+    {
       "patient_id": "P3",
       "therapist_id": "T1",
       "room_id": "R2",
       "specialty": "phonoaudiology",
       "day": "Tuesday",
-      "time": "15:00-16:00"
-    },
-    {
-      "patient_id": "P1",
-      "therapist_id": "T1",
-      "room_id": "R2",
-      "specialty": "phonoaudiology",
-      "day": "Tuesday",
-      "time": "17:00-18:00"
-    },
-    {
-      "patient_id": "P1",
-      "therapist_id": "T1",
-      "room_id": "R2",
-      "specialty": "phonoaudiology",
-      "day": "Wednesday",
-      "time": "14:00-15:00"
+      "time": "16:00-17:00"
     },
     {
       "patient_id": "P1",
       "therapist_id": "T3",
-      "room_id": "R1",
+      "room_id": "R2",
       "specialty": "kinesiology",
       "day": "Wednesday",
+      "time": "14:00-15:00"
+    },
+    {
+      "patient_id": "P1",
+      "therapist_id": "T1",
+      "room_id": "R2",
+      "specialty": "phonoaudiology",
+      "day": "Wednesday",
       "time": "17:00-18:00"
     },
     {
@@ -56,7 +56,7 @@
       "room_id": "R2",
       "specialty": "phonoaudiology",
       "day": "Thursday",
-      "time": "14:00-15:00"
+      "time": "16:00-17:00"
     },
     {
       "patient_id": "P3",
@@ -64,12 +64,12 @@
       "room_id": "R2",
       "specialty": "phonoaudiology",
       "day": "Thursday",
-      "time": "17:00-18:00"
+      "time": "16:00-17:00"
     },
     {
       "patient_id": "P1",
       "therapist_id": "T3",
-      "room_id": "R1",
+      "room_id": "R2",
       "specialty": "kinesiology",
       "day": "Thursday",
       "time": "17:00-18:00"

@@ -49,7 +49,8 @@ def load_instance(path: Path) -> Instance:
     data = json.loads(path.read_text())
 
     specialties = {
-        name: SpecialtyInfo(**info) for name, info in data.get("specialties", {}).items()
+        name: SpecialtyInfo(**info)
+        for name, info in data.get("specialties", {}).items()
     }
 
     therapists = [
@@ -115,7 +116,9 @@ def _validate_instance(
     for patient in patients:
         for specialty, required in patient.requirements.items():
             if specialty not in specialties:
-                raise ValueError(f"Unknown specialty '{specialty}' for patient {patient.id}.")
+                raise ValueError(
+                    f"Unknown specialty '{specialty}' for patient {patient.id}."
+                )
             if required < 0:
                 raise ValueError(f"Requirement for {specialty} must be non-negative.")
         for specialty in patient.no_same_day_specialties:
