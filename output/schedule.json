@@ -1,87 +1,227 @@
 {
-  "status": "OPTIMAL",
-  "objective_value": 8.0,
-  "schedule": [
+  "status": "success",
+  "startedAt": "2026-01-08T18:17:20.808688",
+  "finishedAt": "2026-01-08T18:17:21.125350",
+  "objectiveValue": 8.0,
+  "diagnostics": [],
+  "sessions": [
     {
-      "patient_id": "P2",
-      "therapist_id": "T2",
-      "room_id": "R2",
-      "specialty": "occupational_therapy",
+      "id": "R1-T1-Monday-08:00",
       "day": "Monday",
-      "time": "10:00-11:00"
+      "start": "08:00",
+      "end": "09:00",
+      "roomId": "R1",
+      "therapistId": "T1",
+      "patientIds": [
+        "7"
+      ],
+      "specialty": "kinesiology"
     },
     {
-      "patient_id": "P1",
-      "therapist_id": "T1",
-      "room_id": "R2",
-      "specialty": "phonoaudiology",
+      "id": "4-T1-Monday-09:00",
       "day": "Monday",
-      "time": "16:00-17:00"
+      "start": "09:00",
+      "end": "10:00",
+      "roomId": "4",
+      "therapistId": "T1",
+      "patientIds": [
+        "3"
+      ],
+      "specialty": "phonoaudiology"
     },
     {
-      "patient_id": "P1",
-      "therapist_id": "T1",
-      "room_id": "R2",
-      "specialty": "phonoaudiology",
+      "id": "R1-4-Monday-09:00",
+      "day": "Monday",
+      "start": "09:00",
+      "end": "10:00",
+      "roomId": "R1",
+      "therapistId": "4",
+      "patientIds": [
+        "2"
+      ],
+      "specialty": "kinesiology"
+    },
+    {
+      "id": "sala colegio-visitadora 1-Monday-10:00",
+      "day": "Monday",
+      "start": "10:00",
+      "end": "11:00",
+      "roomId": "sala colegio",
+      "therapistId": "visitadora 1",
+      "patientIds": [
+        "2"
+      ],
+      "specialty": "visita colegio"
+    },
+    {
+      "id": "4-T1-Monday-11:00",
+      "day": "Monday",
+      "start": "11:00",
+      "end": "12:00",
+      "roomId": "4",
+      "therapistId": "T1",
+      "patientIds": [
+        "7"
+      ],
+      "specialty": "phonoaudiology"
+    },
+    {
+      "id": "sala colegio-visitadora 1-Monday-11:00",
+      "day": "Monday",
+      "start": "11:00",
+      "end": "12:00",
+      "roomId": "sala colegio",
+      "therapistId": "visitadora 1",
+      "patientIds": [
+        "2"
+      ],
+      "specialty": "visita colegio"
+    },
+    {
+      "id": "R1-2-Monday-12:00",
+      "day": "Monday",
+      "start": "12:00",
+      "end": "13:00",
+      "roomId": "R1",
+      "therapistId": "2",
+      "patientIds": [
+        "3"
+      ],
+      "specialty": "kinesiology"
+    },
+    {
+      "id": "R1-T1-Monday-14:00",
+      "day": "Monday",
+      "start": "14:00",
+      "end": "15:00",
+      "roomId": "R1",
+      "therapistId": "T1",
+      "patientIds": [
+        "2",
+        "3",
+        "4"
+      ],
+      "specialty": "paes grupal"
+    },
+    {
+      "id": "R1-4-Monday-15:00",
+      "day": "Monday",
+      "start": "15:00",
+      "end": "16:00",
+      "roomId": "R1",
+      "therapistId": "4",
+      "patientIds": [
+        "4"
+      ],
+      "specialty": "kinesiology"
+    },
+    {
+      "id": "sala colegio-visitadora 1-Monday-15:00",
+      "day": "Monday",
+      "start": "15:00",
+      "end": "16:00",
+      "roomId": "sala colegio",
+      "therapistId": "visitadora 1",
+      "patientIds": [
+        "2"
+      ],
+      "specialty": "visita colegio"
+    },
+    {
+      "id": "4-T1-Monday-16:00",
+      "day": "Monday",
+      "start": "16:00",
+      "end": "17:00",
+      "roomId": "4",
+      "therapistId": "T1",
+      "patientIds": [
+        "4"
+      ],
+      "specialty": "phonoaudiology"
+    },
+    {
+      "id": "R1-4-Monday-16:00",
+      "day": "Monday",
+      "start": "16:00",
+      "end": "17:00",
+      "roomId": "R1",
+      "therapistId": "4",
+      "patientIds": [
+        "2"
+      ],
+      "specialty": "kinesiology"
+    },
+    {
+      "id": "4-T1-Thursday-09:00",
+      "day": "Thursday",
+      "start": "09:00",
+      "end": "10:00",
+      "roomId": "4",
+      "therapistId": "T1",
+      "patientIds": [
+        "4"
+      ],
+      "specialty": "phonoaudiology"
+    },
+    {
+      "id": "R1-2-Thursday-14:00",
+      "day": "Thursday",
+      "start": "14:00",
+      "end": "15:00",
+      "roomId": "R1",
+      "therapistId": "2",
+      "patientIds": [
+        "4"
+      ],
+      "specialty": "kinesiology"
+    },
+    {
+      "id": "4-T1-Tuesday-11:00",
       "day": "Tuesday",
-      "time": "16:00-17:00"
+      "start": "11:00",
+      "end": "12:00",
+      "roomId": "4",
+      "therapistId": "T1",
+      "patientIds": [
+        "4"
+      ],
+      "specialty": "phonoaudiology"
     },
     {
-      "patient_id": "P3",
-      "therapist_id": "T1",
-      "room_id": "R2",
-      "specialty": "phonoaudiology",
+      "id": "R1-T1-Tuesday-15:00",
       "day": "Tuesday",
-      "time": "16:00-17:00"
+      "start": "15:00",
+      "end": "16:00",
+      "roomId": "R1",
+      "therapistId": "T1",
+      "patientIds": [
+        "7"
+      ],
+      "specialty": "phonoaudiology"
     },
     {
-      "patient_id": "P1",
-      "therapist_id": "T3",
-      "room_id": "R2",
-      "specialty": "kinesiology",
+      "id": "R1-4-Tuesday-17:00",
+      "day": "Tuesday",
+      "start": "17:00",
+      "end": "18:00",
+      "roomId": "R1",
+      "therapistId": "4",
+      "patientIds": [
+        "4"
+      ],
+      "specialty": "kinesiology"
+    },
+    {
+      "id": "R1-T1-Wednesday-16:00",
       "day": "Wednesday",
-      "time": "14:00-15:00"
-    },
-    {
-      "patient_id": "P1",
-      "therapist_id": "T1",
-      "room_id": "R2",
-      "specialty": "phonoaudiology",
-      "day": "Wednesday",
-      "time": "17:00-18:00"
-    },
-    {
-      "patient_id": "P1",
-      "therapist_id": "T1",
-      "room_id": "R2",
-      "specialty": "phonoaudiology",
-      "day": "Thursday",
-      "time": "16:00-17:00"
-    },
-    {
-      "patient_id": "P3",
-      "therapist_id": "T1",
-      "room_id": "R2",
-      "specialty": "phonoaudiology",
-      "day": "Thursday",
-      "time": "16:00-17:00"
-    },
-    {
-      "patient_id": "P1",
-      "therapist_id": "T3",
-      "room_id": "R2",
-      "specialty": "kinesiology",
-      "day": "Thursday",
-      "time": "17:00-18:00"
-    },
-    {
-      "patient_id": "P2",
-      "therapist_id": "T2",
-      "room_id": "R2",
-      "specialty": "occupational_therapy",
-      "day": "Friday",
-      "time": "10:00-11:00"
+      "start": "16:00",
+      "end": "17:00",
+      "roomId": "R1",
+      "therapistId": "T1",
+      "patientIds": [
+        "7"
+      ],
+      "specialty": "phonoaudiology"
     }
-  ],
-  "diagnostics": []
+  ]
 }

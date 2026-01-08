@@ -139,23 +139,23 @@ class SchedulerModel:
                                     specialty,
                                 )
                                 var_name = f"x_{patient.id}_{therapist.id}_{room.id}_{day}_{block}_{specialty}"
-                            assign_var = self.model.NewBoolVar(var_name)
-                            self.assign[
-                                (
-                                    patient.id,
-                                    therapist.id,
-                                    room.id,
-                                    day,
-                                    block,
-                                    specialty,
-                                )
-                            ] = assign_var
-                            if session_key not in self.session_active:
-                                self.session_active[session_key] = (
-                                    self.model.NewBoolVar(
-                                        f"s_{therapist.id}_{room.id}_{day}_{block}_{specialty}"
+                                assign_var = self.model.NewBoolVar(var_name)
+                                self.assign[
+                                    (
+                                        patient.id,
+                                        therapist.id,
+                                        room.id,
+                                        day,
+                                        block,
+                                        specialty,
                                     )
-                                )
+                                ] = assign_var
+                                if session_key not in self.session_active:
+                                    self.session_active[session_key] = (
+                                        self.model.NewBoolVar(
+                                            f"s_{therapist.id}_{room.id}_{day}_{block}_{specialty}"
+                                        )
+                                    )
                                 # Link assignment to session activation: a patient can only join an active session.
                                 self.model.Add(
                                     assign_var <= self.session_active[session_key]
