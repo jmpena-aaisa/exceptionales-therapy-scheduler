@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -30,12 +30,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 const ENTITY_KEY = ['entities']
+const NONE_VALUE = '__none__'
 
 type TherapistForm = { id: string; name: string; specialties: string[]; availability: Availability }
+type PatientTherapyForm = { therapy: string; sessions: number; fixedTherapists: Record<string, string[]> }
 type PatientForm = {
   id: string
   name: string
-  therapies: { therapy: string; sessions: number }[]
+  therapies: PatientTherapyForm[]
   availability: Availability
   maxContinuousHours?: number
   noSameDayTherapies: string[]
@@ -65,7 +67,11 @@ function formFromPatient(p?: Patient): PatientForm {
     id: p?.id ?? '',
     name: p?.name ?? '',
     therapies: p
-      ? Object.entries(p.therapies).map(([therapy, sessions]) => ({ therapy, sessions }))
+      ? Object.entries(p.therapies).map(([therapy, sessions]) => ({
+          therapy,
+          sessions,
+          fixedTherapists: p.fixedTherapists?.[therapy] ?? {},
+        }))
       : [],
     availability: p?.availability ?? FULL_AVAILABILITY,
     maxContinuousHours: p?.maxContinuousHours,
@@ -141,6 +147,22 @@ export function EntitiesPanel() {
   const data = useMemo(() => entitiesQuery.data, [entitiesQuery.data])
   const specialtyOptions = useMemo(() => (data?.specialties ?? []).map((s) => s.id), [data])
   const therapyOptions = useMemo(() => (data?.therapies ?? []).map((t) => t.id), [data])
+  const therapyListRef = useRef<HTMLDivElement | null>(null)
+  const scrollTherapyListRef = useRef(false)
+  const therapyById = useMemo(() => {
+    return new Map((data?.therapies ?? []).map((therapy) => [therapy.id, therapy]))
+  }, [data])
+  const therapistsBySpecialty = useMemo(() => {
+    const map: Record<string, string[]> = {}
+    ;(data?.therapists ?? []).forEach((therapist) => {
+      therapist.specialties.forEach((specialty) => {
+        if (!map[specialty]) map[specialty] = []
+        map[specialty].push(therapist.id)
+      })
+    })
+    Object.values(map).forEach((list) => list.sort())
+    return map
+  }, [data])
 
   const addTherapyRequirementRow = () => {
     setTherapyForm((prev) => ({
@@ -167,9 +189,10 @@ export function EntitiesPanel() {
   }
 
   const addPatientTherapyRow = () => {
+    scrollTherapyListRef.current = true
     setPatientForm((prev) => ({
       ...prev,
-      therapies: [...prev.therapies, { therapy: therapyOptions[0] ?? '', sessions: 1 }],
+      therapies: [...prev.therapies, { therapy: therapyOptions[0] ?? '', sessions: 1, fixedTherapists: {} }],
     }))
   }
 
@@ -178,7 +201,40 @@ export function EntitiesPanel() {
       const next = [...prev.therapies]
       const req = next[index]
       if (!req) return prev
-      next[index] = { ...req, [field]: field === 'sessions' ? Number(value) : value }
+      if (field === 'therapy') {
+        const therapyId = String(value)
+        const therapyInfo = therapyById.get(therapyId)
+        const specialties = Object.keys(therapyInfo?.requirements ?? {})
+        const nextFixed: Record<string, string[]> = {}
+        specialties.forEach((specialty) => {
+          const existing = req.fixedTherapists?.[specialty] ?? []
+          if (!existing.length) return
+          const requiredCount = therapyInfo?.requirements?.[specialty] ?? existing.length
+          nextFixed[specialty] = existing.slice(0, requiredCount)
+        })
+        next[index] = { ...req, therapy: therapyId, fixedTherapists: nextFixed }
+      } else {
+        next[index] = { ...req, sessions: Number(value) }
+      }
+      return { ...prev, therapies: next }
+    })
+  }
+
+  const updatePatientFixedTherapist = (index: number, specialty: string, slotIndex: number, therapistId: string) => {
+    setPatientForm((prev) => {
+      const next = [...prev.therapies]
+      const req = next[index]
+      if (!req) return prev
+      const therapyInfo = therapyById.get(req.therapy)
+      const requiredCount = therapyInfo?.requirements?.[specialty] ?? 1
+      const current = req.fixedTherapists?.[specialty] ?? []
+      const slots = Array.from({ length: requiredCount }, (_, idx) => current[idx] ?? '')
+      slots[slotIndex] = therapistId
+      const normalized = slots.filter((value) => value)
+      const fixed = { ...req.fixedTherapists }
+      if (normalized.length > 0) fixed[specialty] = normalized
+      else delete fixed[specialty]
+      next[index] = { ...req, fixedTherapists: fixed }
       return { ...prev, therapies: next }
     })
   }
@@ -189,6 +245,16 @@ export function EntitiesPanel() {
       return { ...prev, therapies: next }
     })
   }
+
+  useEffect(() => {
+    if (!scrollTherapyListRef.current) return
+    scrollTherapyListRef.current = false
+    const node = therapyListRef.current
+    if (!node) return
+    requestAnimationFrame(() => {
+      node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
+    })
+  }, [patientForm.therapies.length])
 
   async function handleImport(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -274,11 +340,22 @@ export function EntitiesPanel() {
 
   async function handlePatientSave() {
     const therapies: Record<string, number> = {}
+    const fixedTherapists: Record<string, Record<string, string[]>> = {}
     patientForm.therapies.forEach((req) => {
       if (!req.therapy) return
       const sessions = Number(req.sessions)
       if (Number.isNaN(sessions) || sessions <= 0) return
       therapies[req.therapy] = sessions
+      if (req.fixedTherapists && Object.keys(req.fixedTherapists).length > 0) {
+        const normalized: Record<string, string[]> = {}
+        Object.entries(req.fixedTherapists).forEach(([specialty, therapistIds]) => {
+          const ids = therapistIds.filter((id) => id)
+          if (ids.length > 0) normalized[specialty] = ids
+        })
+        if (Object.keys(normalized).length > 0) {
+          fixedTherapists[req.therapy] = normalized
+        }
+      }
     })
     await upsertPatientMutation.mutateAsync({
       id: patientForm.id,
@@ -287,6 +364,7 @@ export function EntitiesPanel() {
       availability: patientForm.availability,
       maxContinuousHours: patientForm.maxContinuousHours ? Number(patientForm.maxContinuousHours) : undefined,
       noSameDayTherapies: patientForm.noSameDayTherapies,
+      fixedTherapists,
     })
     toast.success('Paciente guardado')
     setOpenDialog(null)
@@ -609,52 +687,111 @@ export function EntitiesPanel() {
                     </div>
                     <div className="space-y-2">
                       <Label>Terapias requeridas</Label>
-                      <div className="space-y-2">
-                        {patientForm.therapies.map((req, idx) => (
-                          <div key={idx} className="flex flex-col gap-2 rounded-lg border border-border/70 bg-secondary/40 p-3 md:flex-row md:items-center">
-                            <div className="w-full md:w-1/2">
-                              <Select
-                                value={req.therapy}
-                                onValueChange={(value) => updatePatientTherapy(idx, 'therapy', value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Terapia" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {therapyOptions.map((opt) => (
-                                    <SelectItem key={opt} value={opt}>
-                                      {opt}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                      <div className="max-h-[240px] overflow-y-auto pr-2" ref={therapyListRef}>
+                        <div className="space-y-2 pb-2">
+                          {patientForm.therapies.map((req, idx) => (
+                            <div key={idx} className="flex flex-col gap-2 rounded-lg border border-border/70 bg-secondary/40 p-3">
+                              <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                                <div className="w-full md:w-1/2">
+                                  <Select
+                                    value={req.therapy}
+                                    onValueChange={(value) => updatePatientTherapy(idx, 'therapy', value)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Terapia" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {therapyOptions.map((opt) => (
+                                        <SelectItem key={opt} value={opt}>
+                                          {opt}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="flex w-full items-center gap-2 md:w-1/2">
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={req.sessions}
+                                    onChange={(e) => updatePatientTherapy(idx, 'sessions', e.target.value)}
+                                    className="w-full"
+                                  />
+                                  <Button variant="ghost" size="sm" onClick={() => removePatientTherapy(idx)}>
+                                    Eliminar
+                                  </Button>
+                                </div>
+                              </div>
+                              {(() => {
+                                const therapyInfo = therapyById.get(req.therapy)
+                                const requirements = therapyInfo?.requirements ?? {}
+                                const entries = Object.entries(requirements)
+                                if (!entries.length) return null
+                                return (
+                                  <div className="space-y-2 text-xs text-muted-foreground">
+                                    <div>Terapeutas fijos (opcional)</div>
+                                    {entries.map(([specialty, count]) => {
+                                      const options = therapistsBySpecialty[specialty] ?? []
+                                      const total = Number(count) || 1
+                                      const current = req.fixedTherapists?.[specialty] ?? []
+                                      const slots = Array.from({ length: total }, (_, slotIndex) => current[slotIndex] ?? '')
+                                      return (
+                                        <div key={`${req.therapy}-${specialty}`} className="space-y-2">
+                                          {slots.map((slotValue, slotIndex) => {
+                                            const label =
+                                              total > 1
+                                                ? `Fijar ${slotIndex + 1} de ${total} (${specialty})`
+                                                : `Fijar ${specialty}`
+                                            return (
+                                              <div key={`${req.therapy}-${specialty}-${slotIndex}`} className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                                <span>{label}</span>
+                                                <Select
+                                                  value={slotValue || NONE_VALUE}
+                                                  onValueChange={(value) =>
+                                                    updatePatientFixedTherapist(
+                                                      idx,
+                                                      specialty,
+                                                      slotIndex,
+                                                      value === NONE_VALUE ? '' : value,
+                                                    )
+                                                  }
+                                                >
+                                                  <SelectTrigger className="md:w-[220px]">
+                                                    <SelectValue placeholder="Sin fijar" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    <SelectItem value={NONE_VALUE}>Sin fijar</SelectItem>
+                                                    {options.map((therapistId) => (
+                                                      <SelectItem key={therapistId} value={therapistId}>
+                                                        {therapistId}
+                                                      </SelectItem>
+                                                    ))}
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                            )
+                                          })}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )
+                              })()}
                             </div>
-                            <div className="flex w-full items-center gap-2 md:w-1/2">
-                              <Input
-                                type="number"
-                                min={1}
-                                value={req.sessions}
-                                onChange={(e) => updatePatientTherapy(idx, 'sessions', e.target.value)}
-                                className="w-full"
-                              />
-                              <Button variant="ghost" size="sm" onClick={() => removePatientTherapy(idx)}>
-                                Eliminar
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={addPatientTherapyRow}
-                          disabled={!therapyOptions.length}
-                        >
-                          Añadir terapia
-                        </Button>
-                        {!therapyOptions.length ? (
-                          <p className="text-xs text-muted-foreground">Primero agrega terapias.</p>
-                        ) : null}
+                          ))}
+                        </div>
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={addPatientTherapyRow}
+                        disabled={!therapyOptions.length}
+                      >
+                        Añadir terapia
+                      </Button>
+                      {!therapyOptions.length ? (
+                        <p className="text-xs text-muted-foreground">Primero agrega terapias.</p>
+                      ) : null}
                     </div>
                     <div className="space-y-2">
                       <Label>Disponibilidad</Label>

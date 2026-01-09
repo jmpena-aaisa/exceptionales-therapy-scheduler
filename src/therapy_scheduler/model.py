@@ -140,6 +140,9 @@ class SchedulerModel:
         self.slack_staffing: Dict[Tuple[str, str, str, int, str], cp_model.IntVar] = {}
         self.slack_session_min: Dict[SessionKey, cp_model.IntVar] = {}
         self.slack_session_max: Dict[SessionKey, cp_model.IntVar] = {}
+        self.slack_fixed_therapist: Dict[
+            Tuple[str, str, str, str], List[cp_model.IntVar]
+        ] = {}
 
     def solve(self) -> SolveResult:
         self.diagnostic_mode = None
@@ -244,6 +247,7 @@ class SchedulerModel:
         self._session_capacity_constraints()
         self._staffing_requirements()
         self._patient_requirements()
+        self._patient_fixed_therapists()
         self._patient_no_same_day_therapies()
         self._one_session_per_time()
         self._patient_continuous_hours_limit()
@@ -384,6 +388,60 @@ class SchedulerModel:
                         constraint = self.model.Add(sum(vars_for_requirement) == required)
                         if assumption is not None:
                             constraint.OnlyEnforceIf(assumption)
+
+    def _patient_fixed_therapists(self) -> None:
+        # Ensure fixed therapists staff sessions a patient attends.
+        for patient in self.instance.patients:
+            if not patient.fixed_therapists:
+                continue
+            for therapy_id, fixed in patient.fixed_therapists.items():
+                if not fixed:
+                    continue
+                for specialty, therapist_id in fixed.items():
+                    therapist_ids = therapist_id if isinstance(therapist_id, list) else [therapist_id]
+                    therapist_ids = [tid for tid in therapist_ids if tid]
+                    if not therapist_ids:
+                        continue
+                    for therapist_id in therapist_ids:
+                        for (
+                            pid,
+                            tid,
+                            rid,
+                            day,
+                            block,
+                        ), assign_var in self.patient_sessions.items():
+                            if pid != patient.id or tid != therapy_id:
+                                continue
+                            staff_key = (
+                                therapist_id,
+                                therapy_id,
+                                rid,
+                                day,
+                                block,
+                                specialty,
+                            )
+                            staff_var = self.staffing.get(staff_key)
+                            if self.diagnostic_mode == "soft":
+                                slack = self.model.NewBoolVar(
+                                    f"slack_fixed_{patient.id}_{therapy_id}_{specialty}_{therapist_id}_{rid}_{day}_{block}"
+                                )
+                                self.slack_fixed_therapist.setdefault(
+                                    (patient.id, therapy_id, specialty, therapist_id), []
+                                ).append(slack)
+                                if staff_var is not None:
+                                    self.model.Add(assign_var <= staff_var + slack)
+                                else:
+                                    self.model.Add(assign_var <= slack)
+                                continue
+                            assumption = self._assumption_for(
+                                f"fixed_therapist|{patient.id}|{therapy_id}|{specialty}|{therapist_id}"
+                            )
+                            if staff_var is not None:
+                                constraint = self.model.Add(assign_var <= staff_var)
+                            else:
+                                constraint = self.model.Add(assign_var == 0)
+                            if assumption is not None:
+                                constraint.OnlyEnforceIf(assumption)
 
     def _patient_no_same_day_therapies(self) -> None:
         # Optional rule: at most one session of a therapy for a patient per day.
@@ -613,6 +671,8 @@ class SchedulerModel:
         terms.extend(self.slack_staffing.values())
         terms.extend(self.slack_session_min.values())
         terms.extend(self.slack_session_max.values())
+        for items in self.slack_fixed_therapist.values():
+            terms.extend(items)
         if terms:
             self.model.Minimize(sum(terms))
         else:
@@ -707,6 +767,11 @@ class SchedulerModel:
             return f"Therapist {parts[1]} one-session-per-time constraint."
         if kind == "room_one_session" and len(parts) >= 2:
             return f"Room {parts[1]} one-session-per-time constraint."
+        if kind == "fixed_therapist" and len(parts) >= 5:
+            return (
+                f"Patient {parts[1]} fixed therapist {parts[4]} "
+                f"for therapy '{parts[2]}' specialty '{parts[3]}'."
+            )
         return label
 
     def _diagnose_with_soft_constraints(self) -> List[str]:
@@ -762,6 +827,13 @@ class SchedulerModel:
                     f"Need +{value} '{specialty}' staff for therapy {therapy_id} "
                     f"in room {room_id} {day} {block_to_range(block)}."
                 )
+        for (patient_id, therapy_id, specialty, therapist_id), slacks in self.slack_fixed_therapist.items():
+            total = sum(solver.Value(slack) for slack in slacks)
+            if total > 0:
+                messages.append(
+                    f"Patient {patient_id} needs therapist {therapist_id} for '{therapy_id}' "
+                    f"({specialty}), but {total} session(s) violate that requirement."
+                )
         return self._limit_messages(messages)
 
     def _limit_messages(self, messages: Iterable[str], limit: int = 20) -> List[str]:
@@ -789,6 +861,7 @@ class SchedulerModel:
         staff_slots: Dict[Tuple[str, str], int] = {}
         rooms_by_therapy: Dict[str, List[str]] = {}
         required_patients_by_therapy: Dict[str, int] = {}
+        therapist_by_id = {therapist.id: therapist for therapist in self.instance.therapists}
 
         for room in self.instance.rooms:
             for therapy_id in room.therapies:
@@ -810,6 +883,74 @@ class SchedulerModel:
 
         for (_tid, therapy_id, _rid, _day, _block, specialty), _var in self.staffing.items():
             staff_slots[(therapy_id, specialty)] = staff_slots.get((therapy_id, specialty), 0) + 1
+
+        for patient in self.instance.patients:
+            for therapy_id, fixed in patient.fixed_therapists.items():
+                if not fixed:
+                    continue
+                therapy_info = self.instance.therapies.get(therapy_id)
+                if not therapy_info:
+                    messages.append(
+                        f"Patient {patient.id} fixes therapists for unknown therapy '{therapy_id}'."
+                    )
+                    continue
+                for specialty, therapist_ids in fixed.items():
+                    if not therapist_ids:
+                        continue
+                    ids = therapist_ids if isinstance(therapist_ids, list) else [therapist_ids]
+                    ids = [tid for tid in ids if tid]
+                    if not ids:
+                        continue
+                    required_count = therapy_info.requirements.get(specialty, 0)
+                    if required_count == 0:
+                        messages.append(
+                            f"Patient {patient.id} fixes '{specialty}' for '{therapy_id}', "
+                            "but the therapy does not require that specialty."
+                        )
+                        continue
+                    if len(ids) > required_count:
+                        messages.append(
+                            f"Patient {patient.id} fixes {len(ids)} '{specialty}' therapist(s) for '{therapy_id}', "
+                            f"but only {required_count} required."
+                        )
+                    if len(set(ids)) != len(ids):
+                        messages.append(
+                            f"Patient {patient.id} repeats a therapist for '{therapy_id}' ({specialty})."
+                        )
+                    for therapist_id in ids:
+                        therapist = therapist_by_id.get(therapist_id)
+                        if not therapist:
+                            messages.append(
+                                f"Patient {patient.id} fixes therapist '{therapist_id}' for '{therapy_id}', "
+                                "but that therapist does not exist."
+                            )
+                            continue
+                        if specialty not in therapist.specialties:
+                            messages.append(
+                                f"Therapist {therapist_id} lacks specialty '{specialty}' required by "
+                                f"patient {patient.id} for '{therapy_id}'."
+                            )
+                            continue
+                        has_slot = False
+                        for (pid, tid, rid, day, block), _var in self.patient_sessions.items():
+                            if pid != patient.id or tid != therapy_id:
+                                continue
+                            staff_key = (
+                                therapist_id,
+                                therapy_id,
+                                rid,
+                                day,
+                                block,
+                                specialty,
+                            )
+                            if staff_key in self.staffing:
+                                has_slot = True
+                                break
+                        if not has_slot:
+                            messages.append(
+                                f"Patient {patient.id} requires therapist {therapist_id} for '{therapy_id}' "
+                                f"({specialty}), but there are no slots where both are available in compatible rooms."
+                            )
 
         for patient in self.instance.patients:
             for therapy_id, required in patient.therapies.items():

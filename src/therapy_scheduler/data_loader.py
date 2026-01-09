@@ -22,6 +22,7 @@ class Patient:
     availability: Dict[str, Set[int]]
     max_continuous_hours: int = 3
     no_same_day_therapies: Set[str] = field(default_factory=set)
+    fixed_therapists: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -104,6 +105,9 @@ def load_instance(path: Path) -> Instance:
             ),
             max_continuous_hours=patient.get("max_continuous_hours", 3),
             no_same_day_therapies=set(patient.get("no_same_day_therapies", [])),
+            fixed_therapists=_parse_fixed_therapists(
+                patient.get("fixed_therapists") or patient.get("fixedTherapists", {})
+            ),
         )
         for patient in data.get("patients", [])
     ]
@@ -169,6 +173,42 @@ def _validate_instance(
                 )
 
     for patient in patients:
+        for therapy_id, fixed in patient.fixed_therapists.items():
+            if therapy_id not in therapies:
+                raise ValueError(
+                    f"Patient {patient.id} references unknown therapy '{therapy_id}' in fixed therapists."
+                )
+            requirements = therapies[therapy_id].requirements
+            for specialty, therapist_id in fixed.items():
+                if specialty not in requirements:
+                    raise ValueError(
+                        f"Patient {patient.id} fixes specialty '{specialty}' for therapy '{therapy_id}', "
+                        "but the therapy does not require that specialty."
+                    )
+                required_count = requirements.get(specialty, 0)
+                if len(therapist_id) > required_count:
+                    raise ValueError(
+                        f"Patient {patient.id} fixes {len(therapist_id)} '{specialty}' therapist(s) for "
+                        f"therapy '{therapy_id}', but only {required_count} required."
+                    )
+                if len(set(therapist_id)) != len(therapist_id):
+                    raise ValueError(
+                        f"Patient {patient.id} repeats a fixed therapist for '{therapy_id}' ({specialty})."
+                    )
+                for therapist in therapist_id:
+                    if therapist not in therapist_ids:
+                        raise ValueError(
+                            f"Patient {patient.id} references unknown therapist '{therapist}' "
+                            f"for therapy '{therapy_id}'."
+                        )
+                    therapist_obj = next((t for t in therapists if t.id == therapist), None)
+                    if therapist_obj and specialty not in therapist_obj.specialties:
+                        raise ValueError(
+                            f"Therapist '{therapist}' lacks specialty '{specialty}' "
+                            f"for patient {patient.id} fixed therapist."
+                        )
+
+    for patient in patients:
         for therapy_id, required in patient.therapies.items():
             if therapy_id not in therapies:
                 raise ValueError(
@@ -183,6 +223,28 @@ def _validate_instance(
                 raise ValueError(
                     f"Unknown therapy '{therapy_id}' in no_same_day_therapies for patient {patient.id}."
                 )
+
+
+def _parse_fixed_therapists(raw: object) -> Dict[str, Dict[str, List[str]]]:
+    fixed_therapists: Dict[str, Dict[str, List[str]]] = {}
+    if not isinstance(raw, dict):
+        return fixed_therapists
+    for therapy_id, mapping in raw.items():
+        if not isinstance(mapping, dict):
+            continue
+        normalized: Dict[str, List[str]] = {}
+        for specialty, therapist_value in mapping.items():
+            if isinstance(therapist_value, list):
+                ids = [str(item) for item in therapist_value if item]
+            elif therapist_value:
+                ids = [str(therapist_value)]
+            else:
+                ids = []
+            if ids:
+                normalized[str(specialty)] = ids
+        if normalized:
+            fixed_therapists[str(therapy_id)] = normalized
+    return fixed_therapists
 
     for room in rooms:
         if room.capacity < 1:

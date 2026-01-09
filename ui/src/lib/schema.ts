@@ -16,6 +16,15 @@ export const patientSchema = z.object({
   availability: availabilitySchema.optional(),
   maxContinuousHours: z.number().optional(),
   noSameDayTherapies: z.array(z.string()).optional(),
+  fixedTherapists: z
+    .record(
+      z.string(),
+      z.record(
+        z.string(),
+        z.union([z.string(), z.array(z.string())]).transform((value) => (Array.isArray(value) ? value : [value])),
+      ),
+    )
+    .optional(),
 })
 
 export const roomSchema = z.object({

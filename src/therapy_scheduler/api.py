@@ -38,6 +38,7 @@ class PatientPayload(BaseModel):
     availability: Optional[Availability] = None
     maxContinuousHours: Optional[int] = None
     noSameDayTherapies: List[str] = Field(default_factory=list)
+    fixedTherapists: Dict[str, Dict[str, List[str]]] = Field(default_factory=dict)
 
 
 class RoomPayload(BaseModel):
@@ -129,6 +130,7 @@ def payload_to_instance(payload: EntitiesPayload) -> Instance:
             availability=availability_to_blocks_per_day(p.availability.to_dict() if p.availability else {}),
             max_continuous_hours=p.maxContinuousHours or 3,
             no_same_day_therapies=set(p.noSameDayTherapies),
+            fixed_therapists=p.fixedTherapists,
         )
         for p in payload.patients
     ]
