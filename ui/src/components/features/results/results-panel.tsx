@@ -169,14 +169,16 @@ function SlotRow({ slot, days, byDaySlot }: SlotRowProps) {
                     className="rounded-lg border border-border/70 bg-secondary/70 px-2 py-2 text-[11px] leading-tight text-foreground shadow-sm"
                   >
                     <div className="flex items-center justify-between text-[11px] font-semibold">
-                      <span>{s.specialty}</span>
+                      <span>{s.therapyId}</span>
                       <span className="text-muted-foreground">n={s.patientIds.length}</span>
                     </div>
                     <div className="mt-1 text-[11px] text-muted-foreground">
                       {s.start} - {s.end}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                      <span>Terapeuta: {s.therapistId}</span>
+                      <span>
+                        Staff: {s.staff.map((m) => `${m.specialty}:${m.therapistId}`).join(', ') || '—'}
+                      </span>
                       <span>Sala: {s.roomId}</span>
                       <span>Pacientes: {s.patientIds.join(', ') || '—'}</span>
                     </div>
@@ -212,7 +214,7 @@ function pickGroupIds(session: ScheduleSession, mode: GroupMode): string[] {
     case 'rooms':
       return [session.roomId]
     case 'therapists':
-      return [session.therapistId]
+      return session.staff.map((m) => m.therapistId)
     case 'patients':
       return session.patientIds.length ? session.patientIds : ['—']
     default:

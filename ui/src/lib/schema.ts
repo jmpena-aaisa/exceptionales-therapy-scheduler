@@ -12,24 +12,29 @@ export const therapistSchema = z.object({
 export const patientSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  requirements: z.record(z.string(), z.number().nonnegative()).default({}),
+  therapies: z.record(z.string(), z.number().nonnegative()).default({}),
   availability: availabilitySchema.optional(),
   maxContinuousHours: z.number().optional(),
-  noSameDaySpecialties: z.array(z.string()).optional(),
+  noSameDayTherapies: z.array(z.string()).optional(),
 })
 
 export const roomSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  specialties: z.array(z.string()).default([]),
+  therapies: z.array(z.string()).default([]),
   capacity: z.number().int().positive().default(1),
   availability: availabilitySchema.optional(),
 })
 
 export const specialtySchema = z.object({
   id: z.string().min(1),
-  minQuorum: z.number().int().nonnegative().default(1),
-  maxQuorum: z.number().int().positive().default(4),
+})
+
+export const therapySchema = z.object({
+  id: z.string().min(1),
+  requirements: z.record(z.string(), z.number().int().positive()).default({}),
+  minPatients: z.number().int().positive().default(1),
+  maxPatients: z.number().int().positive().default(4),
 })
 
 export const entitiesSchema = z.object({
@@ -37,6 +42,7 @@ export const entitiesSchema = z.object({
   patients: z.array(patientSchema),
   rooms: z.array(roomSchema),
   specialties: z.array(specialtySchema),
+  therapies: z.array(therapySchema),
 })
 
 export type Entities = z.infer<typeof entitiesSchema>
@@ -44,6 +50,12 @@ export type Therapist = z.infer<typeof therapistSchema>
 export type Patient = z.infer<typeof patientSchema>
 export type Room = z.infer<typeof roomSchema>
 export type Specialty = z.infer<typeof specialtySchema>
+export type Therapy = z.infer<typeof therapySchema>
+
+export const scheduleStaffSchema = z.object({
+  therapistId: z.string(),
+  specialty: z.string(),
+})
 
 export const scheduleSessionSchema = z.object({
   id: z.string(),
@@ -51,9 +63,9 @@ export const scheduleSessionSchema = z.object({
   start: z.string(),
   end: z.string(),
   roomId: z.string(),
-  therapistId: z.string(),
   patientIds: z.array(z.string()),
-  specialty: z.string(),
+  therapyId: z.string(),
+  staff: z.array(scheduleStaffSchema).default([]),
 })
 
 export type ScheduleSession = z.infer<typeof scheduleSessionSchema>

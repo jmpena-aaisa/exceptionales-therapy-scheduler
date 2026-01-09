@@ -5,12 +5,13 @@ from typing import Dict, List, Tuple
 
 from ortools.sat.python import cp_model
 
-from .data_loader import Instance, Patient, Room, SpecialtyInfo, Therapist
+from .data_loader import Instance, Patient, Room, TherapyInfo, Therapist
 from .time_utils import BLOCKS, DAY_ORDER, block_to_range, consecutive_segments
 
 
-AssignmentKey = Tuple[str, str, str, str, int, str]
-SessionKey = Tuple[str, str, str, int, str]
+PatientSessionKey = Tuple[str, str, str, str, int]
+SessionKey = Tuple[str, str, str, int]
+StaffingKey = Tuple[str, str, str, str, int, str]
 
 
 @dataclass
@@ -29,7 +30,7 @@ class SolverOptions:
 class SolveResult:
     status: str
     objective_value: float
-    schedule: List[Dict[str, str]]
+    schedule: List[Dict[str, object]]
     diagnostics: List[str]
 
 
@@ -44,10 +45,12 @@ class SchedulerModel:
         self.objective_weights = objective_weights
         self.solver_options = solver_options
         self.model = cp_model.CpModel()
-        # assign[(patient, therapist, room, day, block, specialty)] == 1 if a patient attends that exact slot.
-        self.assign: Dict[AssignmentKey, cp_model.IntVar] = {}
-        # session_active[(therapist, room, day, block, specialty)] == 1 if the slot is opened as a session.
+        # patient_sessions[(patient, therapy, room, day, block)] == 1 if patient attends that therapy session.
+        self.patient_sessions: Dict[PatientSessionKey, cp_model.IntVar] = {}
+        # session_active[(therapy, room, day, block)] == 1 if the therapy session is opened.
         self.session_active: Dict[SessionKey, cp_model.IntVar] = {}
+        # staffing[(therapist, therapy, room, day, block, specialty)] == 1 if therapist staffs that role.
+        self.staffing: Dict[StaffingKey, cp_model.IntVar] = {}
         # patient_day_used[(patient, day)] == 1 if the patient has any session that day (feeds objective).
         self.patient_day_used: Dict[Tuple[str, str], cp_model.IntVar] = {}
         # therapist_busy[(therapist, day, block)] == 1 if therapist works that block (used to spot idle gaps).
@@ -74,26 +77,52 @@ class SchedulerModel:
         }
         status_name = status_lookup.get(status_code, "UNKNOWN")
 
-        schedule: List[Dict[str, str]] = []
+        schedule: List[Dict[str, object]] = []
         diagnostics: List[str] = []
         if status_code in (cp_model.FEASIBLE, cp_model.OPTIMAL):
-            for (pid, tid, rid, day, block, specialty), var in self.assign.items():
-                if solver.Value(var) == 1:
-                    schedule.append(
-                        {
-                            "patient_id": pid,
-                            "therapist_id": tid,
-                            "room_id": rid,
-                            "specialty": specialty,
-                            "day": day,
-                            "time": block_to_range(block),
-                        }
-                    )
+            for (therapy_id, room_id, day, block), session_var in self.session_active.items():
+                if solver.Value(session_var) != 1:
+                    continue
+                patient_ids = [
+                    pid
+                    for (pid, tid, rid, d, b), var in self.patient_sessions.items()
+                    if tid == therapy_id and rid == room_id and d == day and b == block and solver.Value(var) == 1
+                ]
+                staff = [
+                    {"therapist_id": therapist_id, "specialty": specialty}
+                    for (
+                        therapist_id,
+                        tid,
+                        rid,
+                        d,
+                        b,
+                        specialty,
+                    ), var in self.staffing.items()
+                    if tid == therapy_id
+                    and rid == room_id
+                    and d == day
+                    and b == block
+                    and solver.Value(var) == 1
+                ]
+                schedule.append(
+                    {
+                        "therapy_id": therapy_id,
+                        "room_id": room_id,
+                        "day": day,
+                        "time": block_to_range(block),
+                        "patient_ids": sorted(patient_ids),
+                        "staff": sorted(
+                            staff,
+                            key=lambda item: (item["specialty"], item["therapist_id"]),
+                        ),
+                    }
+                )
             schedule.sort(
                 key=lambda item: (
-                    DAY_ORDER.index(item["day"]),
-                    item["time"],
-                    item["therapist_id"],
+                    DAY_ORDER.index(str(item["day"])),
+                    str(item["time"]),
+                    str(item["room_id"]),
+                    str(item["therapy_id"]),
                 )
             )
         elif status_code in (
@@ -110,85 +139,96 @@ class SchedulerModel:
             diagnostics=diagnostics,
         )
 
+    def _get_session_var(self, therapy_id: str, room_id: str, day: str, block: int) -> cp_model.IntVar:
+        key = (therapy_id, room_id, day, block)
+        if key not in self.session_active:
+            self.session_active[key] = self.model.NewBoolVar(
+                f"s_{therapy_id}_{room_id}_{day}_{block}"
+            )
+        return self.session_active[key]
+
     def _build_variables(self) -> None:
         """Create assignment and session variables for feasible combinations."""
+        for therapy_id, therapy in self.instance.therapies.items():
+            for room in self.instance.rooms:
+                if therapy_id not in room.therapies:
+                    continue
+                for day in DAY_ORDER:
+                    for block in BLOCKS:
+                        session_var = self._get_session_var(therapy_id, room.id, day, block)
+                        for specialty in therapy.requirements.keys():
+                            for therapist in self.instance.therapists:
+                                if specialty not in therapist.specialties:
+                                    continue
+                                if (
+                                    day not in therapist.availability
+                                    or block not in therapist.availability[day]
+                                ):
+                                    continue
+                                staff_key = (
+                                    therapist.id,
+                                    therapy_id,
+                                    room.id,
+                                    day,
+                                    block,
+                                    specialty,
+                                )
+                                if staff_key in self.staffing:
+                                    continue
+                                staff_var = self.model.NewBoolVar(
+                                    f"t_{therapist.id}_{therapy_id}_{room.id}_{day}_{block}_{specialty}"
+                                )
+                                self.staffing[staff_key] = staff_var
+                                self.model.Add(staff_var <= session_var)
+
         for patient in self.instance.patients:
-            for specialty, required in patient.requirements.items():
+            for therapy_id, required in patient.therapies.items():
                 if required <= 0:
                     continue
                 for day in DAY_ORDER:
                     if day not in patient.availability:
                         continue
                     for block in patient.availability.get(day, set()):
-                        for therapist in self.instance.therapists:
-                            if specialty not in therapist.specialties:
+                        for room in self.instance.rooms:
+                            if therapy_id not in room.therapies:
                                 continue
-                            if (
-                                day not in therapist.availability
-                                or block not in therapist.availability[day]
-                            ):
-                                continue
-                            for room in self.instance.rooms:
-                                if specialty not in room.specialties:
-                                    continue
-                                session_key = (
-                                    therapist.id,
-                                    room.id,
-                                    day,
-                                    block,
-                                    specialty,
-                                )
-                                var_name = f"x_{patient.id}_{therapist.id}_{room.id}_{day}_{block}_{specialty}"
-                                assign_var = self.model.NewBoolVar(var_name)
-                                self.assign[
-                                    (
-                                        patient.id,
-                                        therapist.id,
-                                        room.id,
-                                        day,
-                                        block,
-                                        specialty,
-                                    )
-                                ] = assign_var
-                                if session_key not in self.session_active:
-                                    self.session_active[session_key] = (
-                                        self.model.NewBoolVar(
-                                            f"s_{therapist.id}_{room.id}_{day}_{block}_{specialty}"
-                                        )
-                                    )
-                                # Link assignment to session activation: a patient can only join an active session.
-                                self.model.Add(
-                                    assign_var <= self.session_active[session_key]
-                                )
+                            session_var = self._get_session_var(therapy_id, room.id, day, block)
+                            var_name = f"x_{patient.id}_{therapy_id}_{room.id}_{day}_{block}"
+                            assign_var = self.model.NewBoolVar(var_name)
+                            self.patient_sessions[
+                                (patient.id, therapy_id, room.id, day, block)
+                            ] = assign_var
+                            # Patient can only join an active session.
+                            self.model.Add(assign_var <= session_var)
 
         self._ensure_feasibility_of_requirements()
 
     def _ensure_feasibility_of_requirements(self) -> None:
-        # Fail early if any patient/specialty has no feasible assignment variables at all.
+        # Fail early if any patient/therapy has no feasible assignment variables at all.
         for patient in self.instance.patients:
-            for specialty, required in patient.requirements.items():
+            for therapy_id, required in patient.therapies.items():
                 matching_vars = [
                     var
                     for (
                         pid,
-                        _tid,
+                        tid,
                         _rid,
                         _day,
                         _block,
-                        spec,
-                    ), var in self.assign.items()
-                    if pid == patient.id and spec == specialty
+                    ), var in self.patient_sessions.items()
+                    if pid == patient.id and tid == therapy_id
                 ]
                 if required > 0 and not matching_vars:
                     raise ValueError(
-                        f"No feasible slots for patient {patient.id} and specialty {specialty}. "
-                        "Check availability and resources."
+                        f"No feasible slots for patient {patient.id} and therapy {therapy_id}. "
+                        "Check availability and room compatibility."
                     )
 
     def _add_constraints(self) -> None:
         self._session_capacity_constraints()
+        self._staffing_requirements()
         self._patient_requirements()
-        self._patient_no_same_day_specialties()
+        self._patient_no_same_day_therapies()
         self._one_session_per_time()
         self._patient_continuous_hours_limit()
         self._therapist_and_room_single_session()
@@ -197,70 +237,93 @@ class SchedulerModel:
         self._patient_day_indicators()
 
     def _session_capacity_constraints(self) -> None:
-        # Enforce session quorum and capacity, tying to both specialty and room limits.
+        # Enforce session min/max patients, capped by room capacity.
+        rooms_by_id = {room.id: room for room in self.instance.rooms}
         for (
-            therapist_id,
+            therapy_id,
             room_id,
             day,
             block,
-            specialty,
         ), session_var in self.session_active.items():
             session_assignments = [
                 var
-                for (pid, tid, rid, d, b, spec), var in self.assign.items()
-                if tid == therapist_id
-                and rid == room_id
-                and d == day
-                and b == block
-                and spec == specialty
+                for (pid, tid, rid, d, b), var in self.patient_sessions.items()
+                if tid == therapy_id and rid == room_id and d == day and b == block
             ]
-            if not session_assignments:
-                continue
             total_patients = sum(session_assignments)
-            specialty_info: SpecialtyInfo = self.instance.specialties[specialty]
-            room: Room = next(r for r in self.instance.rooms if r.id == room_id)
-            max_allowed = min(specialty_info.max_quorum, room.capacity)
+            therapy_info: TherapyInfo = self.instance.therapies[therapy_id]
+            room: Room = rooms_by_id[room_id]
+            max_allowed = min(therapy_info.max_patients, room.capacity)
             self.model.Add(total_patients <= max_allowed)
-            # If the session is active, enforce minimum quorum.
-            self.model.Add(total_patients >= specialty_info.min_quorum * session_var)
-            # Session can't be active without patients.
-            self.model.Add(total_patients >= session_var)
+            # If the session is active, enforce minimum patients.
+            self.model.Add(total_patients >= therapy_info.min_patients * session_var)
+
+    def _staffing_requirements(self) -> None:
+        # Enforce required number of therapists per specialty for each session.
+        for (
+            therapy_id,
+            room_id,
+            day,
+            block,
+        ), session_var in self.session_active.items():
+            therapy_info = self.instance.therapies[therapy_id]
+            for specialty, required in therapy_info.requirements.items():
+                staff_vars = [
+                    var
+                    for (
+                        _tid,
+                        tid,
+                        rid,
+                        d,
+                        b,
+                        spec,
+                    ), var in self.staffing.items()
+                    if tid == therapy_id
+                    and rid == room_id
+                    and d == day
+                    and b == block
+                    and spec == specialty
+                ]
+                if staff_vars:
+                    self.model.Add(sum(staff_vars) == required * session_var)
+                else:
+                    # No available staff for this specialty in this slot.
+                    if required > 0:
+                        self.model.Add(session_var == 0)
 
     def _patient_requirements(self) -> None:
-        # Exactly meet the required count of sessions per patient and specialty.
+        # Exactly meet the required count of sessions per patient and therapy.
         for patient in self.instance.patients:
-            for specialty, required in patient.requirements.items():
+            for therapy_id, required in patient.therapies.items():
                 vars_for_requirement = [
                     var
                     for (
                         pid,
-                        _tid,
+                        tid,
                         _rid,
                         _day,
                         _block,
-                        spec,
-                    ), var in self.assign.items()
-                    if pid == patient.id and spec == specialty
+                    ), var in self.patient_sessions.items()
+                    if pid == patient.id and tid == therapy_id
                 ]
                 if required >= 0:
                     self.model.Add(sum(vars_for_requirement) == required)
 
-    def _patient_no_same_day_specialties(self) -> None:
-        # Optional rule: at most one session of a specialty for a patient per day.
+    def _patient_no_same_day_therapies(self) -> None:
+        # Optional rule: at most one session of a therapy for a patient per day.
         for patient in self.instance.patients:
-            for specialty in patient.no_same_day_specialties:
+            for therapy_id in patient.no_same_day_therapies:
                 for day in DAY_ORDER:
                     vars_for_day = [
                         var
                         for (
                             pid,
-                            _tid,
+                            tid,
                             _rid,
                             d,
                             _block,
-                            spec,
-                        ), var in self.assign.items()
-                        if pid == patient.id and d == day and spec == specialty
+                        ), var in self.patient_sessions.items()
+                        if pid == patient.id and d == day and tid == therapy_id
                     ]
                     if vars_for_day:
                         self.model.Add(sum(vars_for_day) <= 1)
@@ -272,7 +335,7 @@ class SchedulerModel:
                 for block in BLOCKS:
                     overlapping = [
                         var
-                        for (pid, _tid, _rid, d, b, _spec), var in self.assign.items()
+                        for (pid, _tid, _rid, d, b), var in self.patient_sessions.items()
                         if pid == patient.id and d == day and b == block
                     ]
                     if overlapping:
@@ -297,8 +360,7 @@ class SchedulerModel:
                                 _rid,
                                 d,
                                 b,
-                                _spec,
-                            ), var in self.assign.items()
+                            ), var in self.patient_sessions.items()
                             if pid == patient.id and d == day and b in window_blocks
                         ]
                         if window_vars:
@@ -313,11 +375,12 @@ class SchedulerModel:
                         session_var
                         for (
                             tid,
+                            _therapy_id,
                             _rid,
                             d,
                             b,
                             _spec,
-                        ), session_var in self.session_active.items()
+                        ), session_var in self.staffing.items()
                         if tid == therapist.id and d == day and b == block
                     ]
                     if sessions:
@@ -330,11 +393,10 @@ class SchedulerModel:
                     sessions = [
                         session_var
                         for (
-                            _tid,
+                            _therapy_id,
                             rid,
                             d,
                             b,
-                            _spec,
                         ), session_var in self.session_active.items()
                         if rid == room.id and d == day and b == block
                     ]
@@ -350,11 +412,12 @@ class SchedulerModel:
                         session_var
                         for (
                             tid,
+                            _therapy_id,
                             _rid,
                             d,
                             b,
                             _spec,
-                        ), session_var in self.session_active.items()
+                        ), session_var in self.staffing.items()
                         if tid == therapist.id and d == day and b == block
                     ]
                     if not sessions:
@@ -402,7 +465,7 @@ class SchedulerModel:
             for day in DAY_ORDER:
                 vars_for_day = [
                     var
-                    for (pid, _tid, _rid, d, _b, _spec), var in self.assign.items()
+                    for (pid, _tid, _rid, d, _b), var in self.patient_sessions.items()
                     if pid == patient.id and d == day
                 ]
                 if not vars_for_day:
@@ -431,23 +494,28 @@ class SchedulerModel:
 
     def _diagnose_infeasibility(self) -> List[str]:
         messages: List[str] = []
-        # Aggregate feasibility counts per patient/specialty and by day.
-        spec_slots_total: Dict[Tuple[str, str], int] = {}
-        spec_slots_by_day: Dict[Tuple[str, str, str], int] = {}
-        specialty_global_slots: Dict[str, int] = {}
-        for (pid, _tid, _rid, day, _block, spec), _var in self.assign.items():
-            spec_slots_total[(pid, spec)] = spec_slots_total.get((pid, spec), 0) + 1
-            spec_slots_by_day[(pid, spec, day)] = (
-                spec_slots_by_day.get((pid, spec, day), 0) + 1
+        # Aggregate feasibility counts per patient/therapy and by day.
+        therapy_slots_total: Dict[Tuple[str, str], int] = {}
+        therapy_slots_by_day: Dict[Tuple[str, str, str], int] = {}
+        therapy_global_slots: Dict[str, int] = {}
+        staff_slots: Dict[Tuple[str, str], int] = {}
+
+        for (pid, tid, _rid, day, _block), _var in self.patient_sessions.items():
+            therapy_slots_total[(pid, tid)] = therapy_slots_total.get((pid, tid), 0) + 1
+            therapy_slots_by_day[(pid, tid, day)] = (
+                therapy_slots_by_day.get((pid, tid, day), 0) + 1
             )
-            specialty_global_slots[spec] = specialty_global_slots.get(spec, 0) + 1
+            therapy_global_slots[tid] = therapy_global_slots.get(tid, 0) + 1
+
+        for (_tid, therapy_id, _rid, _day, _block, specialty), _var in self.staffing.items():
+            staff_slots[(therapy_id, specialty)] = staff_slots.get((therapy_id, specialty), 0) + 1
 
         for patient in self.instance.patients:
-            for specialty, required in patient.requirements.items():
-                total_slots = spec_slots_total.get((patient.id, specialty), 0)
+            for therapy_id, required in patient.therapies.items():
+                total_slots = therapy_slots_total.get((patient.id, therapy_id), 0)
                 if total_slots < required:
                     day_counts = {
-                        day: spec_slots_by_day.get((patient.id, specialty, day), 0)
+                        day: therapy_slots_by_day.get((patient.id, therapy_id, day), 0)
                         for day in DAY_ORDER
                     }
                     available_days = (
@@ -455,36 +523,39 @@ class SchedulerModel:
                         or "none"
                     )
                     messages.append(
-                        f"Patient {patient.id} needs {required} '{specialty}' sessions but only "
+                        f"Patient {patient.id} needs {required} '{therapy_id}' sessions but only "
                         f"{total_slots} feasible slots exist (by day {available_days})."
                     )
                 else:
-                    # Check if any "no same day" restriction squeezes per-day capacity.
-                    if specialty in patient.no_same_day_specialties:
+                    if therapy_id in patient.no_same_day_therapies:
                         max_per_week_with_rule = sum(
                             min(
                                 1,
-                                spec_slots_by_day.get((patient.id, specialty, day), 0),
+                                therapy_slots_by_day.get((patient.id, therapy_id, day), 0),
                             )
                             for day in DAY_ORDER
                         )
                         if max_per_week_with_rule < required:
                             messages.append(
-                                f"Patient {patient.id} has 'no_same_day' for '{specialty}', allowing at most "
+                                f"Patient {patient.id} has 'no_same_day' for '{therapy_id}', allowing at most "
                                 f"{max_per_week_with_rule} sessions per week but requires {required}."
                             )
 
-        # Highlight specialties with no available therapist/room/time at all.
-        for specialty in self.instance.specialties.keys():
-            if specialty_global_slots.get(specialty, 0) == 0:
+        for therapy_id, therapy in self.instance.therapies.items():
+            if therapy_global_slots.get(therapy_id, 0) == 0:
                 messages.append(
-                    f"No feasible slots for specialty '{specialty}' across all therapists/rooms/availability."
+                    f"No feasible slots for therapy '{therapy_id}' across rooms/patient availability."
                 )
+            for specialty in therapy.requirements.keys():
+                if staff_slots.get((therapy_id, specialty), 0) == 0:
+                    messages.append(
+                        f"No feasible staff slots for therapy '{therapy_id}' specialty '{specialty}'."
+                    )
 
         if not messages:
             messages.append(
                 "Solver reported infeasible. Consider relaxing constraints "
-                "(availability, max_continuous_hours, quorum/capacity, no_same_day_specialties) "
+                "(availability, max_continuous_hours, therapy staffing, no_same_day_therapies) "
                 "or extending time limit."
             )
         return messages

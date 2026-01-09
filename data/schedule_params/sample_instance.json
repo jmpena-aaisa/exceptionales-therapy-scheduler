@@ -1,4 +1,44 @@
 {
+  "specialties": [
+    "kinesiology",
+    "phonoaudiology",
+    "occupational_therapy"
+  ],
+  "therapies": [
+    {
+      "id": "kine_1",
+      "requirements": {
+        "kinesiology": 1
+      },
+      "min_patients": 1,
+      "max_patients": 1
+    },
+    {
+      "id": "fono_group",
+      "requirements": {
+        "phonoaudiology": 1
+      },
+      "min_patients": 1,
+      "max_patients": 4
+    },
+    {
+      "id": "play_group",
+      "requirements": {
+        "kinesiology": 2,
+        "phonoaudiology": 1
+      },
+      "min_patients": 2,
+      "max_patients": 5
+    },
+    {
+      "id": "occupational_1",
+      "requirements": {
+        "occupational_therapy": 1
+      },
+      "min_patients": 1,
+      "max_patients": 2
+    }
+  ],
   "therapists": [
     {
       "id": "T1",
@@ -74,13 +114,14 @@
   "patients": [
     {
       "id": "P1",
-      "requirements": {
-        "kinesiology": 2,
-        "phonoaudiology": 4
+      "therapies": {
+        "kine_1": 2,
+        "fono_group": 2,
+        "play_group": 1
       },
-      "no_same_day_specialties": [
-        "phonoaudiology",
-        "kinesiology"
+      "no_same_day_therapies": [
+        "kine_1",
+        "fono_group"
       ],
       "availability": {
         "Monday": [
@@ -101,11 +142,11 @@
     },
     {
       "id": "P2",
-      "requirements": {
-        "occupational_therapy": 2
+      "therapies": {
+        "occupational_1": 2
       },
-      "no_same_day_specialties": [
-        "occupational_therapy"
+      "no_same_day_therapies": [
+        "occupational_1"
       ],
       "availability": {
         "Monday": [
@@ -124,11 +165,11 @@
     },
     {
       "id": "P3",
-      "requirements": {
-        "phonoaudiology": 2
+      "therapies": {
+        "play_group": 1
       },
-      "no_same_day_specialties": [
-        "phonoaudiology"
+      "no_same_day_therapies": [
+        "play_group"
       ],
       "availability": {
         "Tuesday": [
@@ -144,33 +185,20 @@
   "rooms": [
     {
       "id": "R1",
-      "specialties": [
-        "kinesiology",
-        "phonoaudiology"
+      "therapies": [
+        "kine_1",
+        "fono_group"
       ],
       "capacity": 1
     },
     {
       "id": "R2",
-      "specialties": [
-        "phonoaudiology",
-        "occupational_therapy"
+      "therapies": [
+        "fono_group",
+        "play_group",
+        "occupational_1"
       ],
       "capacity": 4
     }
-  ],
-  "specialties": {
-    "kinesiology": {
-      "min_quorum": 1,
-      "max_quorum": 1
-    },
-    "phonoaudiology": {
-      "min_quorum": 1,
-      "max_quorum": 4
-    },
-    "occupational_therapy": {
-      "min_quorum": 1,
-      "max_quorum": 2
-    }
-  }
+  ]
 }

@@ -1,4 +1,4 @@
-import { entitiesSchema, importPayloadSchema, scheduleResultSchema, type Entities, type ImportPayload, type ScheduleResult, type Therapist, type Patient, type Room, type Specialty } from './schema'
+import { entitiesSchema, importPayloadSchema, scheduleResultSchema, type Entities, type ImportPayload, type ScheduleResult, type Therapist, type Patient, type Room, type Specialty, type Therapy } from './schema'
 import { downloadFile } from './utils'
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
@@ -9,6 +9,7 @@ const seedEntities: Entities = {
   patients: [],
   rooms: [],
   specialties: [],
+  therapies: [],
 }
 
 function readFromStorage(): Entities {
@@ -67,6 +68,14 @@ export async function upsertSpecialty(input: Specialty): Promise<Entities> {
   const index = data.specialties.findIndex((s) => s.id === input.id)
   if (index >= 0) data.specialties[index] = input
   else data.specialties.push(input)
+  return saveEntities(data)
+}
+
+export async function upsertTherapy(input: Therapy): Promise<Entities> {
+  const data = readFromStorage()
+  const index = data.therapies.findIndex((t) => t.id === input.id)
+  if (index >= 0) data.therapies[index] = input
+  else data.therapies.push(input)
   return saveEntities(data)
 }
 

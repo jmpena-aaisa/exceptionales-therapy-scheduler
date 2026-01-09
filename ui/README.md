@@ -9,7 +9,8 @@ React + Vite + shadcn-style components for managing entities, importing/exportin
 4. `VITE_API_BASE=http://localhost:8000 npm run dev` and open the URL from the console.
 
 ## Features
-- CRUD tabs for therapists, patients, rooms, specialties.
+- CRUD tabs for specialties, therapies, therapists, patients, rooms.
+- Therapies define required specialties plus min/max patients per session.
 - Import/export entities as JSON (localStorage-backed for now).
 - Run model against the API and show status; results come from the backend solver.
 - Results viewer by room/therapist/patient; download current `schedule.json` or `schedule.xlsx` (from `output/`).

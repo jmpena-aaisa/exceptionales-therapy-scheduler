@@ -10,10 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, RootModel
 
-from .data_loader import Instance, Patient, Room, SpecialtyInfo, Therapist
+from .data_loader import Instance, Patient, Room, TherapyInfo, Therapist
 from .excel_writer import export_excel
 from .model import ObjectiveWeights, SchedulerModel, SolverOptions
-from .time_utils import availability_to_blocks_per_day, block_to_range, range_to_block
+from .time_utils import availability_to_blocks_per_day
 
 
 # ---------- Pydantic input/output models ----------
@@ -34,23 +34,28 @@ class TherapistPayload(BaseModel):
 
 class PatientPayload(BaseModel):
     id: str
-    requirements: Dict[str, int] = Field(default_factory=dict)
+    therapies: Dict[str, int] = Field(default_factory=dict)
     availability: Optional[Availability] = None
     maxContinuousHours: Optional[int] = None
-    noSameDaySpecialties: List[str] = Field(default_factory=list)
+    noSameDayTherapies: List[str] = Field(default_factory=list)
 
 
 class RoomPayload(BaseModel):
     id: str
-    specialties: List[str] = Field(default_factory=list)
+    therapies: List[str] = Field(default_factory=list)
     capacity: int = 1
     availability: Optional[Availability] = None
 
 
 class SpecialtyPayload(BaseModel):
     id: str
-    minQuorum: int = 1
-    maxQuorum: int = 4
+
+
+class TherapyPayload(BaseModel):
+    id: str
+    requirements: Dict[str, int] = Field(default_factory=dict)
+    minPatients: int = 1
+    maxPatients: int = 4
 
 
 class EntitiesPayload(BaseModel):
@@ -58,6 +63,7 @@ class EntitiesPayload(BaseModel):
     patients: List[PatientPayload] = Field(default_factory=list)
     rooms: List[RoomPayload] = Field(default_factory=list)
     specialties: List[SpecialtyPayload] = Field(default_factory=list)
+    therapies: List[TherapyPayload] = Field(default_factory=list)
 
 
 class RunRequest(BaseModel):
@@ -67,15 +73,20 @@ class RunRequest(BaseModel):
     therapistIdleGapWeight: Optional[int] = None
 
 
+class ScheduleStaff(BaseModel):
+    therapistId: str
+    specialty: str
+
+
 class ScheduleSession(BaseModel):
     id: str
     day: str
     start: str
     end: str
     roomId: str
-    therapistId: str
+    therapyId: str
     patientIds: List[str]
-    specialty: str
+    staff: List[ScheduleStaff] = Field(default_factory=list)
 
 
 class ScheduleResponse(BaseModel):
@@ -91,9 +102,14 @@ class ScheduleResponse(BaseModel):
 
 
 def payload_to_instance(payload: EntitiesPayload) -> Instance:
-    specialties = {
-        s.id: SpecialtyInfo(min_quorum=s.minQuorum, max_quorum=s.maxQuorum)
-        for s in payload.specialties
+    specialties = {s.id for s in payload.specialties}
+    therapies = {
+        t.id: TherapyInfo(
+            requirements=t.requirements,
+            min_patients=t.minPatients,
+            max_patients=t.maxPatients,
+        )
+        for t in payload.therapies
     }
 
     therapists = [
@@ -108,10 +124,10 @@ def payload_to_instance(payload: EntitiesPayload) -> Instance:
     patients = [
         Patient(
             id=p.id,
-            requirements=p.requirements,
+            therapies=p.therapies,
             availability=availability_to_blocks_per_day(p.availability.to_dict() if p.availability else {}),
             max_continuous_hours=p.maxContinuousHours or 3,
-            no_same_day_specialties=set(p.noSameDaySpecialties),
+            no_same_day_therapies=set(p.noSameDayTherapies),
         )
         for p in payload.patients
     ]
@@ -119,7 +135,7 @@ def payload_to_instance(payload: EntitiesPayload) -> Instance:
     rooms = [
         Room(
             id=r.id,
-            specialties=set(r.specialties),
+            therapies=set(r.therapies),
             capacity=int(r.capacity or 1),
         )
         for r in payload.rooms
@@ -130,6 +146,7 @@ def payload_to_instance(payload: EntitiesPayload) -> Instance:
         patients=patients,
         rooms=rooms,
         specialties=specialties,
+        therapies=therapies,
     )
 
 
@@ -143,61 +160,44 @@ def solver_status_to_ui(status: str) -> str:
     return "idle"
 
 
-def aggregate_sessions(schedule: List[Dict[str, str]]) -> List[ScheduleSession]:
-    grouped: Dict[tuple, List[str]] = {}
-    metadata: Dict[tuple, Dict[str, str]] = {}
-
-    for item in schedule:
-        start, end = item["time"].split("-")
-        key = (
-            item["day"],
-            start,
-            end,
-            item["room_id"],
-            item["therapist_id"],
-            item["specialty"],
-        )
-        if key not in grouped:
-            grouped[key] = []
-            metadata[key] = {
-                "day": item["day"],
-                "start": start,
-                "end": end,
-                "roomId": item["room_id"],
-                "therapistId": item["therapist_id"],
-                "specialty": item["specialty"],
-            }
-        grouped[key].append(item["patient_id"])
-
+def format_sessions(schedule: List[Dict[str, object]]) -> List[ScheduleSession]:
     sessions: List[ScheduleSession] = []
-    for key, patients in grouped.items():
-        info = metadata[key]
-        sessions.append(
-            ScheduleSession(
-                id=f"{info['roomId']}-{info['therapistId']}-{info['day']}-{info['start']}",
-                patientIds=sorted(patients),
-                **info,
-            )
+    for item in schedule:
+        start, end = str(item["time"]).split("-")
+        staff = [
+            ScheduleStaff(therapistId=staffer["therapist_id"], specialty=staffer["specialty"])
+            for staffer in item.get("staff", [])
+        ]
+        session = ScheduleSession(
+            id=f"{item['room_id']}-{item['therapy_id']}-{item['day']}-{start}",
+            day=str(item["day"]),
+            start=start,
+            end=end,
+            roomId=str(item["room_id"]),
+            therapyId=str(item["therapy_id"]),
+            patientIds=list(item.get("patient_ids", [])),
+            staff=staff,
         )
+        sessions.append(session)
 
-    sessions.sort(key=lambda s: (s.day, s.start, s.roomId, s.therapistId))
+    sessions.sort(key=lambda s: (s.day, s.start, s.roomId, s.therapyId))
     return sessions
 
 
-def validate_schedule(schedule: List[Dict[str, str]], instance: Instance) -> None:
-    """Guardrail: ensure solver output does not use specialties not available in a room."""
-    room_specialties = {room.id: room.specialties for room in instance.rooms}
+def validate_schedule(schedule: List[Dict[str, object]], instance: Instance) -> None:
+    """Guardrail: ensure solver output does not use therapies not available in a room."""
+    room_therapies = {room.id: room.therapies for room in instance.rooms}
     invalid = [
         item
         for item in schedule
-        if item["specialty"] not in room_specialties.get(item["room_id"], set())
+        if item["therapy_id"] not in room_therapies.get(item["room_id"], set())
     ]
     if invalid:
         details = [
-          f"{i['room_id']} missing {i['specialty']} ({i['day']} {i['time']})"
-          for i in invalid
+            f"{i['room_id']} missing {i['therapy_id']} ({i['day']} {i['time']})"
+            for i in invalid
         ]
-        raise ValueError("Schedule uses specialties not allowed in room: " + "; ".join(details))
+        raise ValueError("Schedule uses therapies not allowed in room: " + "; ".join(details))
 
 
 # ---------- FastAPI app ----------
@@ -247,7 +247,7 @@ def run_solver_endpoint(req: RunRequest) -> ScheduleResponse:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    sessions = aggregate_sessions(result.schedule)
+    sessions = format_sessions(result.schedule)
     finished_at = datetime.utcnow().isoformat()
     status_ui = solver_status_to_ui(result.status)
 

@@ -11,49 +11,63 @@ from .time_utils import BLOCKS, DAY_ORDER, block_to_range, range_to_block
 
 
 @dataclass
-class Session:
+class StaffMember:
     therapist_id: str
+    specialty: str
+
+
+@dataclass
+class Session:
+    therapy_id: str
     room_id: str
     day: str
     block: int
-    specialty: str
-    patients: List[str] = field(default_factory=list)
+    patient_ids: List[str] = field(default_factory=list)
+    staff: List[StaffMember] = field(default_factory=list)
 
     @property
     def size(self) -> int:
-        return len(self.patients)
+        return len(self.patient_ids)
 
 
-def aggregate_sessions(schedule: Iterable[Dict[str, str]]) -> List[Session]:
-    grouped: Dict[Tuple[str, str, str, int, str], Session] = {}
+def parse_sessions(schedule: Iterable[Dict[str, object]]) -> List[Session]:
+    sessions: List[Session] = []
     for item in schedule:
-        block = range_to_block(item["time"])
-        key = (
-            item["therapist_id"],
-            item["room_id"],
-            item["day"],
-            block,
-            item["specialty"],
-        )
-        if key not in grouped:
-            grouped[key] = Session(
-                therapist_id=item["therapist_id"],
-                room_id=item["room_id"],
-                day=item["day"],
-                block=block,
-                specialty=item["specialty"],
+        block = range_to_block(str(item["time"]))
+        staff = [
+            StaffMember(
+                therapist_id=str(staffer["therapist_id"]),
+                specialty=str(staffer["specialty"]),
             )
-        grouped[key].patients.append(item["patient_id"])
-    return list(grouped.values())
+            for staffer in item.get("staff", [])
+        ]
+        sessions.append(
+            Session(
+                therapy_id=str(item["therapy_id"]),
+                room_id=str(item["room_id"]),
+                day=str(item["day"]),
+                block=block,
+                patient_ids=list(item.get("patient_ids", [])),
+                staff=staff,
+            )
+        )
+    return sessions
 
 
 def _render_cell(session: Session) -> str:
-    patients = ", ".join(sorted(session.patients))
-    return f"{session.specialty} | {patients} | {session.therapist_id} | {session.room_id} | n={session.size}"
+    patients = ", ".join(sorted(session.patient_ids))
+    staff = ", ".join(
+        f"{member.specialty}:{member.therapist_id}"
+        for member in sorted(session.staff, key=lambda s: (s.specialty, s.therapist_id))
+    )
+    return (
+        f"{session.therapy_id} | {patients} | {staff} | "
+        f"{session.room_id} | n={session.size}"
+    )
 
 
-def export_excel(schedule: List[Dict[str, str]], output_path: Path) -> None:
-    sessions = aggregate_sessions(schedule)
+def export_excel(schedule: List[Dict[str, object]], output_path: Path) -> None:
+    sessions = parse_sessions(schedule)
     wb = Workbook()
     wb.remove(wb.active)
 
@@ -84,7 +98,7 @@ def _add_room_tabs(wb: Workbook, sessions: List[Session]) -> None:
 
 def _add_therapist_tab(wb: Workbook, sessions: List[Session]) -> None:
     ws = wb.create_sheet(title="Therapists")
-    therapist_ids = sorted({s.therapist_id for s in sessions})
+    therapist_ids = sorted({m.therapist_id for s in sessions for m in s.staff})
     ws.cell(row=1, column=1, value="Day")
     ws.cell(row=1, column=2, value="Time")
     for idx, tid in enumerate(therapist_ids, start=3):
@@ -100,7 +114,9 @@ def _add_therapist_tab(wb: Workbook, sessions: List[Session]) -> None:
                     (
                         s
                         for s in sessions
-                        if s.day == day and s.block == block and s.therapist_id == tid
+                        if s.day == day
+                        and s.block == block
+                        and any(m.therapist_id == tid for m in s.staff)
                     ),
                     None,
                 )
@@ -112,7 +128,7 @@ def _add_therapist_tab(wb: Workbook, sessions: List[Session]) -> None:
 
 def _add_patient_tab(wb: Workbook, sessions: List[Session]) -> None:
     ws = wb.create_sheet(title="Patients")
-    patient_ids = sorted({p for s in sessions for p in s.patients})
+    patient_ids = sorted({p for s in sessions for p in s.patient_ids})
     ws.cell(row=1, column=1, value="Day")
     ws.cell(row=1, column=2, value="Time")
     for idx, pid in enumerate(patient_ids, start=3):
@@ -128,7 +144,7 @@ def _add_patient_tab(wb: Workbook, sessions: List[Session]) -> None:
                     (
                         s
                         for s in sessions
-                        if s.day == day and s.block == block and pid in s.patients
+                        if s.day == day and s.block == block and pid in s.patient_ids
                     ),
                     None,
                 )

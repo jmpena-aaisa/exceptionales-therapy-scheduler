@@ -9,11 +9,12 @@ import {
   upsertPatient,
   upsertRoom,
   upsertSpecialty,
+  upsertTherapy,
   upsertTherapist,
 } from '@/lib/api'
 import { formatAvailability, formatRequirements } from '@/lib/utils'
 import type { Availability } from '@/lib/utils'
-import type { Entities, Patient, Room, Specialty, Therapist } from '@/lib/schema'
+import type { Entities, Patient, Room, Specialty, Therapist, Therapy } from '@/lib/schema'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -33,13 +34,19 @@ type TherapistForm = { id: string; name: string; specialties: string[]; availabi
 type PatientForm = {
   id: string
   name: string
-  requirements: { specialty: string; hours: number }[]
+  therapies: { therapy: string; sessions: number }[]
   availability: Availability
   maxContinuousHours?: number
-  noSameDaySpecialties: string[]
+  noSameDayTherapies: string[]
 }
-type RoomForm = { id: string; name: string; specialties: string[]; capacity: number; availability: Availability }
-type SpecialtyForm = { id: string; minQuorum: number; maxQuorum: number }
+type RoomForm = { id: string; name: string; therapies: string[]; capacity: number; availability: Availability }
+type SpecialtyForm = { id: string }
+type TherapyForm = {
+  id: string
+  minPatients: number
+  maxPatients: number
+  requirements: { specialty: string; count: number }[]
+}
 
 const FULL_AVAILABILITY: Availability = buildFullAvailability()
 
@@ -56,12 +63,12 @@ function formFromPatient(p?: Patient): PatientForm {
   return {
     id: p?.id ?? '',
     name: p?.name ?? '',
-    requirements: p
-      ? Object.entries(p.requirements).map(([specialty, hours]) => ({ specialty, hours }))
+    therapies: p
+      ? Object.entries(p.therapies).map(([therapy, sessions]) => ({ therapy, sessions }))
       : [],
     availability: p?.availability ?? FULL_AVAILABILITY,
     maxContinuousHours: p?.maxContinuousHours,
-    noSameDaySpecialties: p?.noSameDaySpecialties ?? [],
+    noSameDayTherapies: p?.noSameDayTherapies ?? [],
   }
 }
 
@@ -69,14 +76,25 @@ function formFromRoom(r?: Room): RoomForm {
   return {
     id: r?.id ?? '',
     name: r?.name ?? '',
-    specialties: r?.specialties ?? [],
+    therapies: r?.therapies ?? [],
     capacity: r?.capacity ?? 1,
     availability: r?.availability ?? FULL_AVAILABILITY,
   }
 }
 
 function formFromSpecialty(s?: Specialty): SpecialtyForm {
-  return { id: s?.id ?? '', minQuorum: s?.minQuorum ?? 1, maxQuorum: s?.maxQuorum ?? 4 }
+  return { id: s?.id ?? '' }
+}
+
+function formFromTherapy(t?: Therapy): TherapyForm {
+  return {
+    id: t?.id ?? '',
+    minPatients: t?.minPatients ?? 1,
+    maxPatients: t?.maxPatients ?? 4,
+    requirements: t
+      ? Object.entries(t.requirements).map(([specialty, count]) => ({ specialty, count }))
+      : [],
+  }
 }
 
 export function EntitiesPanel() {
@@ -99,6 +117,10 @@ export function EntitiesPanel() {
     mutationFn: upsertSpecialty,
     onSuccess: (data) => queryClient.setQueryData(ENTITY_KEY, data),
   })
+  const upsertTherapyMutation = useMutation({
+    mutationFn: upsertTherapy,
+    onSuccess: (data) => queryClient.setQueryData(ENTITY_KEY, data),
+  })
   const deleteMutation = useMutation({
     mutationFn: ({ type, id }: { type: keyof Entities; id: string }) => deleteEntity(type, id),
     onSuccess: (data) => queryClient.setQueryData(ENTITY_KEY, data),
@@ -110,34 +132,60 @@ export function EntitiesPanel() {
   const [patientForm, setPatientForm] = useState<PatientForm>(formFromPatient())
   const [roomForm, setRoomForm] = useState<RoomForm>(formFromRoom())
   const [specialtyForm, setSpecialtyForm] = useState<SpecialtyForm>(formFromSpecialty())
+  const [therapyForm, setTherapyForm] = useState<TherapyForm>(formFromTherapy())
 
   const [openDialog, setOpenDialog] = useState<null | keyof Entities>(null)
   const [editId, setEditId] = useState<string | null>(null)
 
   const data = useMemo(() => entitiesQuery.data, [entitiesQuery.data])
   const specialtyOptions = useMemo(() => (data?.specialties ?? []).map((s) => s.id), [data])
+  const therapyOptions = useMemo(() => (data?.therapies ?? []).map((t) => t.id), [data])
 
-  const addRequirementRow = () => {
-    setPatientForm((prev) => ({
+  const addTherapyRequirementRow = () => {
+    setTherapyForm((prev) => ({
       ...prev,
-      requirements: [...prev.requirements, { specialty: specialtyOptions[0] ?? '', hours: 1 }],
+      requirements: [...prev.requirements, { specialty: specialtyOptions[0] ?? '', count: 1 }],
     }))
   }
 
-  const updateRequirement = (index: number, field: 'specialty' | 'hours', value: string | number) => {
-    setPatientForm((prev) => {
+  const updateTherapyRequirement = (index: number, field: 'specialty' | 'count', value: string | number) => {
+    setTherapyForm((prev) => {
       const next = [...prev.requirements]
       const req = next[index]
       if (!req) return prev
-      next[index] = { ...req, [field]: field === 'hours' ? Number(value) : value }
+      next[index] = { ...req, [field]: field === 'count' ? Number(value) : value }
       return { ...prev, requirements: next }
     })
   }
 
-  const removeRequirement = (index: number) => {
-    setPatientForm((prev) => {
+  const removeTherapyRequirement = (index: number) => {
+    setTherapyForm((prev) => {
       const next = prev.requirements.filter((_, i) => i !== index)
       return { ...prev, requirements: next }
+    })
+  }
+
+  const addPatientTherapyRow = () => {
+    setPatientForm((prev) => ({
+      ...prev,
+      therapies: [...prev.therapies, { therapy: therapyOptions[0] ?? '', sessions: 1 }],
+    }))
+  }
+
+  const updatePatientTherapy = (index: number, field: 'therapy' | 'sessions', value: string | number) => {
+    setPatientForm((prev) => {
+      const next = [...prev.therapies]
+      const req = next[index]
+      if (!req) return prev
+      next[index] = { ...req, [field]: field === 'sessions' ? Number(value) : value }
+      return { ...prev, therapies: next }
+    })
+  }
+
+  const removePatientTherapy = (index: number) => {
+    setPatientForm((prev) => {
+      const next = prev.therapies.filter((_, i) => i !== index)
+      return { ...prev, therapies: next }
     })
   }
 
@@ -192,6 +240,11 @@ export function EntitiesPanel() {
         setSpecialtyForm(formFromSpecialty(found))
         break
       }
+      case 'therapies': {
+        const found = data.therapies.find((t) => t.id === id)
+        setTherapyForm(formFromTherapy(found))
+        break
+      }
       default:
         break
     }
@@ -202,6 +255,7 @@ export function EntitiesPanel() {
     setPatientForm(formFromPatient())
     setRoomForm(formFromRoom())
     setSpecialtyForm(formFromSpecialty())
+    setTherapyForm(formFromTherapy())
     setEditId(null)
   }
 
@@ -218,20 +272,20 @@ export function EntitiesPanel() {
   }
 
   async function handlePatientSave() {
-    const requirements: Record<string, number> = {}
-    patientForm.requirements.forEach((req) => {
-      if (!req.specialty) return
-      const hours = Number(req.hours)
-      if (Number.isNaN(hours) || hours <= 0) return
-      requirements[req.specialty] = hours
+    const therapies: Record<string, number> = {}
+    patientForm.therapies.forEach((req) => {
+      if (!req.therapy) return
+      const sessions = Number(req.sessions)
+      if (Number.isNaN(sessions) || sessions <= 0) return
+      therapies[req.therapy] = sessions
     })
     await upsertPatientMutation.mutateAsync({
       id: patientForm.id,
       name: patientForm.name,
-      requirements,
+      therapies,
       availability: patientForm.availability,
       maxContinuousHours: patientForm.maxContinuousHours ? Number(patientForm.maxContinuousHours) : undefined,
-      noSameDaySpecialties: patientForm.noSameDaySpecialties,
+      noSameDayTherapies: patientForm.noSameDayTherapies,
     })
     toast.success('Paciente guardado')
     setOpenDialog(null)
@@ -242,7 +296,7 @@ export function EntitiesPanel() {
     await upsertRoomMutation.mutateAsync({
       id: roomForm.id,
       name: roomForm.name,
-      specialties: roomForm.specialties,
+      therapies: roomForm.therapies,
       capacity: Number(roomForm.capacity || 1),
       availability: roomForm.availability,
     })
@@ -254,10 +308,27 @@ export function EntitiesPanel() {
   async function handleSpecialtySave() {
     await upsertSpecialtyMutation.mutateAsync({
       id: specialtyForm.id,
-      minQuorum: Number(specialtyForm.minQuorum || 1),
-      maxQuorum: Number(specialtyForm.maxQuorum || 1),
     })
     toast.success('Especialidad guardada')
+    setOpenDialog(null)
+    resetForm()
+  }
+
+  async function handleTherapySave() {
+    const requirements: Record<string, number> = {}
+    therapyForm.requirements.forEach((req) => {
+      if (!req.specialty) return
+      const count = Number(req.count)
+      if (Number.isNaN(count) || count <= 0) return
+      requirements[req.specialty] = count
+    })
+    await upsertTherapyMutation.mutateAsync({
+      id: therapyForm.id,
+      minPatients: Number(therapyForm.minPatients || 1),
+      maxPatients: Number(therapyForm.maxPatients || 1),
+      requirements,
+    })
+    toast.success('Terapia guardada')
     setOpenDialog(null)
     resetForm()
   }
@@ -279,14 +350,14 @@ export function EntitiesPanel() {
     )
   }
 
-  const entities = data ?? { therapists: [], patients: [], rooms: [], specialties: [] }
+  const entities = data ?? { therapists: [], patients: [], rooms: [], specialties: [], therapies: [] }
 
   return (
     <Card>
       <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <CardTitle>Entidades</CardTitle>
-          <CardDescription>Primero define especialidades y luego asigna a terapeutas, pacientes y salas.</CardDescription>
+          <CardDescription>Primero define especialidades y terapias, luego asigna terapeutas, pacientes y salas.</CardDescription>
         </div>
         <div className="flex flex-wrap gap-2">
           <input id="import-json" type="file" accept="application/json" className="hidden" onChange={handleImport} />
@@ -304,6 +375,7 @@ export function EntitiesPanel() {
         <Tabs defaultValue={activeTab} value={activeTab} onValueChange={(v) => setActiveTab(v as keyof Entities)}>
           <TabsList>
             <TabsTrigger value="specialties">Especialidades</TabsTrigger>
+            <TabsTrigger value="therapies">Terapias</TabsTrigger>
             <TabsTrigger value="therapists">Terapeutas</TabsTrigger>
             <TabsTrigger value="patients">Pacientes</TabsTrigger>
             <TabsTrigger value="rooms">Salas</TabsTrigger>
@@ -324,30 +396,6 @@ export function EntitiesPanel() {
                       <Label>ID</Label>
                       <Input value={specialtyForm.id} onChange={(e) => setSpecialtyForm({ ...specialtyForm, id: e.target.value })} />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>Min quorum</Label>
-                        <Input
-                          type="number"
-                          value={specialtyForm.minQuorum}
-                          onChange={(e) => {
-                            const value = Number(e.target.value)
-                            setSpecialtyForm({ ...specialtyForm, minQuorum: Number.isNaN(value) ? 1 : value })
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <Label>Max quorum</Label>
-                        <Input
-                          type="number"
-                          value={specialtyForm.maxQuorum}
-                          onChange={(e) => {
-                            const value = Number(e.target.value)
-                            setSpecialtyForm({ ...specialtyForm, maxQuorum: Number.isNaN(value) ? 1 : value })
-                          }}
-                        />
-                      </div>
-                    </div>
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" onClick={() => setOpenDialog(null)}>
                         Cancelar
@@ -361,12 +409,122 @@ export function EntitiesPanel() {
               </Dialog>
             </div>
             <EntityTable
-              headers={['ID', 'Min', 'Max', 'Acciones']}
+              headers={['ID', 'Acciones']}
               rows={entities.specialties.map((s) => [
                 s.id,
-                s.minQuorum,
-                s.maxQuorum,
                 <RowActions key={s.id} onEdit={() => startEdit('specialties', s.id)} onDelete={() => handleDelete('specialties', s.id)} />,
+              ])}
+            />
+          </TabsContent>
+
+          <TabsContent value="therapies">
+            <div className="mb-3 flex justify-end">
+              <Dialog open={openDialog === 'therapies'} onOpenChange={(open) => (open ? startEdit('therapies') : setOpenDialog(null))}>
+                <DialogTrigger asChild>
+                  <Button onClick={() => startEdit('therapies')}>Añadir terapia</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{editId ? 'Editar terapia' : 'Nueva terapia'}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>ID</Label>
+                      <Input value={therapyForm.id} onChange={(e) => setTherapyForm({ ...therapyForm, id: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Mín pacientes</Label>
+                        <Input
+                          type="number"
+                          value={therapyForm.minPatients}
+                          onChange={(e) => {
+                            const value = Number(e.target.value)
+                            setTherapyForm({ ...therapyForm, minPatients: Number.isNaN(value) ? 1 : value })
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <Label>Máx pacientes</Label>
+                        <Input
+                          type="number"
+                          value={therapyForm.maxPatients}
+                          onChange={(e) => {
+                            const value = Number(e.target.value)
+                            setTherapyForm({ ...therapyForm, maxPatients: Number.isNaN(value) ? 1 : value })
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Especialidades requeridas</Label>
+                      <div className="space-y-2">
+                        {therapyForm.requirements.map((req, idx) => (
+                          <div key={idx} className="flex flex-col gap-2 rounded-lg border border-border/70 bg-secondary/40 p-3 md:flex-row md:items-center">
+                            <div className="w-full md:w-1/2">
+                              <Select
+                                value={req.specialty}
+                                onValueChange={(value) => updateTherapyRequirement(idx, 'specialty', value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Especialidad" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {specialtyOptions.map((opt) => (
+                                    <SelectItem key={opt} value={opt}>
+                                      {opt}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex w-full items-center gap-2 md:w-1/2">
+                              <Input
+                                type="number"
+                                min={1}
+                                value={req.count}
+                                onChange={(e) => updateTherapyRequirement(idx, 'count', e.target.value)}
+                                className="w-full"
+                              />
+                              <Button variant="ghost" size="sm" onClick={() => removeTherapyRequirement(idx)}>
+                                Eliminar
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={addTherapyRequirementRow}
+                          disabled={!specialtyOptions.length}
+                        >
+                          Añadir especialidad
+                        </Button>
+                        {!specialtyOptions.length ? (
+                          <p className="text-xs text-muted-foreground">Primero agrega especialidades.</p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" onClick={() => setOpenDialog(null)}>
+                        Cancelar
+                      </Button>
+                      <Button onClick={handleTherapySave} disabled={upsertTherapyMutation.isPending}>
+                        Guardar
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <EntityTable
+              headers={['ID', 'Min', 'Max', 'Especialidades', 'Acciones']}
+              rows={entities.therapies.map((t) => [
+                t.id,
+                t.minPatients,
+                t.maxPatients,
+                formatRequirements(t.requirements),
+                <RowActions key={t.id} onEdit={() => startEdit('therapies', t.id)} onDelete={() => handleDelete('therapies', t.id)} />,
               ])}
             />
           </TabsContent>
@@ -450,20 +608,20 @@ export function EntitiesPanel() {
                       <Input value={patientForm.name} onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Requerimientos</Label>
+                      <Label>Terapias requeridas</Label>
                       <div className="space-y-2">
-                        {patientForm.requirements.map((req, idx) => (
+                        {patientForm.therapies.map((req, idx) => (
                           <div key={idx} className="flex flex-col gap-2 rounded-lg border border-border/70 bg-secondary/40 p-3 md:flex-row md:items-center">
                             <div className="w-full md:w-1/2">
                               <Select
-                                value={req.specialty}
-                                onValueChange={(value) => updateRequirement(idx, 'specialty', value)}
+                                value={req.therapy}
+                                onValueChange={(value) => updatePatientTherapy(idx, 'therapy', value)}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Especialidad" />
+                                  <SelectValue placeholder="Terapia" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {specialtyOptions.map((opt) => (
+                                  {therapyOptions.map((opt) => (
                                     <SelectItem key={opt} value={opt}>
                                       {opt}
                                     </SelectItem>
@@ -475,11 +633,11 @@ export function EntitiesPanel() {
                               <Input
                                 type="number"
                                 min={1}
-                                value={req.hours}
-                                onChange={(e) => updateRequirement(idx, 'hours', e.target.value)}
+                                value={req.sessions}
+                                onChange={(e) => updatePatientTherapy(idx, 'sessions', e.target.value)}
                                 className="w-full"
                               />
-                              <Button variant="ghost" size="sm" onClick={() => removeRequirement(idx)}>
+                              <Button variant="ghost" size="sm" onClick={() => removePatientTherapy(idx)}>
                                 Eliminar
                               </Button>
                             </div>
@@ -488,13 +646,13 @@ export function EntitiesPanel() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={addRequirementRow}
-                          disabled={!specialtyOptions.length}
+                          onClick={addPatientTherapyRow}
+                          disabled={!therapyOptions.length}
                         >
-                          Añadir requerimiento
+                          Añadir terapia
                         </Button>
-                        {!specialtyOptions.length ? (
-                          <p className="text-xs text-muted-foreground">Primero agrega especialidades.</p>
+                        {!therapyOptions.length ? (
+                          <p className="text-xs text-muted-foreground">Primero agrega terapias.</p>
                         ) : null}
                       </div>
                     </div>
@@ -523,10 +681,10 @@ export function EntitiesPanel() {
                       <div className="space-y-2">
                         <Label>Evitar en el mismo día</Label>
                         <SpecialtySelect
-                          options={specialtyOptions}
-                          value={patientForm.noSameDaySpecialties}
-                          onChange={(noSameDaySpecialties) => setPatientForm({ ...patientForm, noSameDaySpecialties })}
-                          emptyHint="Añade especialidades primero."
+                          options={therapyOptions}
+                          value={patientForm.noSameDayTherapies}
+                          onChange={(noSameDayTherapies) => setPatientForm({ ...patientForm, noSameDayTherapies })}
+                          emptyHint="Añade terapias primero."
                         />
                       </div>
                     </div>
@@ -547,14 +705,14 @@ export function EntitiesPanel() {
               rows={entities.patients.map((p) => [
                 p.id,
                 p.name,
-                formatRequirements(p.requirements),
+                formatRequirements(p.therapies),
                 formatAvailability(p.availability) || '—',
                 (
                   <div className="space-y-1 text-xs" key={`${p.id}-rules`}>
                     {p.maxContinuousHours ? <Badge variant="outline">Max {p.maxContinuousHours}h</Badge> : null}
-                    {p.noSameDaySpecialties?.length ? (
+                    {p.noSameDayTherapies?.length ? (
                       <div className="text-muted-foreground">
-                        Evitar: {p.noSameDaySpecialties.join(', ')}
+                        Evitar: {p.noSameDayTherapies.join(', ')}
                       </div>
                     ) : null}
                   </div>
@@ -584,12 +742,12 @@ export function EntitiesPanel() {
                       <Input value={roomForm.name} onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Especialidades</Label>
+                      <Label>Terapias</Label>
                       <SpecialtySelect
-                        options={specialtyOptions}
-                        value={roomForm.specialties}
-                        onChange={(specialties) => setRoomForm({ ...roomForm, specialties })}
-                        emptyHint="Añade especialidades primero."
+                        options={therapyOptions}
+                        value={roomForm.therapies}
+                        onChange={(therapies) => setRoomForm({ ...roomForm, therapies })}
+                        emptyHint="Añade terapias primero."
                       />
                     </div>
                     <div>
@@ -623,11 +781,11 @@ export function EntitiesPanel() {
               </Dialog>
             </div>
             <EntityTable
-              headers={['ID', 'Nombre', 'Especialidades', 'Capacidad', 'Disponibilidad', 'Acciones']}
+              headers={['ID', 'Nombre', 'Terapias', 'Capacidad', 'Disponibilidad', 'Acciones']}
               rows={entities.rooms.map((r) => [
                 r.id,
                 r.name,
-                r.specialties.join(', '),
+                r.therapies.join(', '),
                 r.capacity,
                 formatAvailability(r.availability) || '—',
                 <RowActions key={r.id} onEdit={() => startEdit('rooms', r.id)} onDelete={() => handleDelete('rooms', r.id)} />,

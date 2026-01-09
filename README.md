@@ -7,7 +7,7 @@
 # Therapy Scheduler
 
 ## 1. ¿Qué es?
-Planificador semanal de terapias basado en optimización de restricciones (OR-Tools CP-SAT). Asigna pacientes, terapeutas y salas en bloques de 1 hora (lun-vie, 08-18 con almuerzo) cumpliendo disponibilidades, especialidades, cupos por sala, tamaños de grupo y guías terapéuticas (máx. horas continuas, evitar doble booking, etc.).
+Planificador semanal de terapias basado en optimización de restricciones (OR-Tools CP-SAT). Asigna pacientes, terapeutas y salas en bloques de 1 hora (lun-vie, 08-18 con almuerzo) cumpliendo terapias (cada terapia define composición de especialidades y min/max pacientes), disponibilidades, cupos por sala y guías terapéuticas (máx. horas continuas, evitar doble booking, etc.).
 
 ## 2. Manual de uso
 - **Configurar datos (Hydra por defecto):**
@@ -24,8 +24,8 @@ Planificador semanal de terapias basado en optimización de restricciones (OR-To
     ```yaml
     patients:
       - id: P1
-        requirements: { kinesiology: 2, phonoaudiology: 4 }
-        no_same_day_specialties: []   # opcional
+        therapies: { play_group: 2, fono_group: 4 }
+        no_same_day_therapies: []   # opcional
         availability:
           Monday: ["14:00-18:00"]
           Tuesday: ["08:00-18:00"]
@@ -35,15 +35,20 @@ Planificador semanal de terapias basado en optimización de restricciones (OR-To
     ```yaml
     rooms:
       - id: R2
-        specialties: [phonoaudiology, occupational_therapy]
+        therapies: [fono_group, play_group]
         capacity: 4
     ```
   - Especialidades: `config/specialties/default.yaml`
     ```yaml
-    specialties:
-      phonoaudiology:
-        min_quorum: 1
-        max_quorum: 4
+    specialties: [phonoaudiology, kinesiology, occupational_therapy]
+    ```
+  - Terapias: `config/therapies/default.yaml`
+    ```yaml
+    therapies:
+      - id: play_group
+        requirements: { kinesiology: 2, phonoaudiology: 1 }
+        min_patients: 2
+        max_patients: 5
     ```
   - Objetivos: `config/objectives/default_objectives.yaml` (pesos de días de paciente e idle gaps de terapeuta).
 - **Configurar por JSON (opcional):** establece `data.instance_path=path/a/archivo.json` (mismo esquema que el ejemplo en `data/schedule_params/sample_instance.json`). Si está `null`, se usan las configs Hydra.
@@ -67,17 +72,17 @@ Planificador semanal de terapias basado en optimización de restricciones (OR-To
 ## 3. Sección técnica
 - **Tecnología:** Python 3.11, OR-Tools CP-SAT, Hydra/OmegaConf, uv, openpyxl; Dockerfile listo; Makefile con targets `optimize`, `docker-run`, `run-local`.
 - **Modelo y restricciones principales:**
-  - Variables binarias de asignación paciente–terapeuta–sala–día–bloque–especialidad; variable de sesión activa por terapeuta–sala–bloque–especialidad.
-  - Cobertura exacta de requerimientos por paciente y especialidad.
+  - Variables binarias de sesión activa por terapia–sala–día–bloque; asignación de pacientes a sesiones y staffing por terapeuta–especialidad–sesión.
+  - Cobertura exacta de terapias requeridas por paciente (conteo de sesiones).
   - No solapamiento: paciente, terapeuta y sala a lo sumo una sesión por bloque.
-  - Capacidad/quórum: min/max por especialidad y capacidad de sala.
+  - Capacidad: min/max por terapia y capacidad de sala.
   - Máx. horas continuas por paciente (ventanas deslizantes).
-  - `no_same_day_specialties`: a lo sumo una sesión diaria para esas especialidades en el paciente.
+  - `no_same_day_therapies`: a lo sumo una sesión diaria para esas terapias en el paciente.
   - Objetivo: minimizar días usados por pacientes + huecos de 1h en agenda de terapeutas (ponderados).
 - **Layout del repo:**
   ```text
   .
-  ├─ config/               # Hydra (therapists, patients, rooms, specialties, objectives)
+  ├─ config/               # Hydra (therapists, patients, rooms, specialties, therapies, objectives)
   ├─ data/                 # Ejemplos JSON (opcional)
   ├─ output/               # Resultados (schedule.json, schedule.xlsx)
   ├─ src/therapy_scheduler # Código: modelo OR-Tools, main, writer Excel
@@ -110,7 +115,7 @@ uv run python -m therapy_scheduler.main
 - Problem instance path: `config/config.yaml` → `data.instance_path`
 - Objective weights: `config/objectives/default_objectives.yaml`
 - Solver options: `config/config.yaml` (`solver.time_limit`, `solver.log_search_progress`)
-- Patient optional constraint: `no_same_day_specialties` disallows multiple sessions of listed specialties on the same day for that patient.
+- Patient optional constraint: `no_same_day_therapies` disallows multiple sessions of listed therapies on the same day for that patient.
 
 You can override any config key via Hydra CLI syntax, e.g.:
 ```bash

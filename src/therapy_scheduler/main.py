@@ -47,7 +47,7 @@ def main(cfg: DictConfig) -> None:
 
     print(f"Status: {result.status}")
     print(f"Objective: {result.objective_value}")
-    print(f"Wrote schedule with {len(result.schedule)} appointments to {output_path}")
+    print(f"Wrote schedule with {len(result.schedule)} sessions to {output_path}")
     if excel_path:
         print(f"Wrote Excel calendar to {excel_full}")
     if result.status == "INFEASIBLE" and result.diagnostics:

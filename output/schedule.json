@@ -1,227 +1,201 @@
 {
   "status": "success",
-  "startedAt": "2026-01-08T18:17:20.808688",
-  "finishedAt": "2026-01-08T18:17:21.125350",
-  "objectiveValue": 8.0,
+  "startedAt": "2026-01-09T03:16:19.288907",
+  "finishedAt": "2026-01-09T03:16:19.435474",
+  "objectiveValue": 7.0,
   "diagnostics": [],
   "sessions": [
     {
-      "id": "R1-T1-Monday-08:00",
-      "day": "Monday",
-      "start": "08:00",
-      "end": "09:00",
-      "roomId": "R1",
-      "therapistId": "T1",
+      "id": "s1-kine_1-Friday-10:00",
+      "day": "Friday",
+      "start": "10:00",
+      "end": "11:00",
+      "roomId": "s1",
+      "therapyId": "kine_1",
       "patientIds": [
-        "7"
+        "joseto"
       ],
-      "specialty": "kinesiology"
+      "staff": [
+        {
+          "therapistId": "mau",
+          "specialty": "kine"
+        }
+      ]
     },
     {
-      "id": "4-T1-Monday-09:00",
-      "day": "Monday",
-      "start": "09:00",
-      "end": "10:00",
-      "roomId": "4",
-      "therapistId": "T1",
+      "id": "s2-fono_1-Friday-15:00",
+      "day": "Friday",
+      "start": "15:00",
+      "end": "16:00",
+      "roomId": "s2",
+      "therapyId": "fono_1",
       "patientIds": [
-        "3"
+        "joseto"
       ],
-      "specialty": "phonoaudiology"
+      "staff": [
+        {
+          "therapistId": "mau",
+          "specialty": "fono"
+        }
+      ]
     },
     {
-      "id": "R1-4-Monday-09:00",
-      "day": "Monday",
-      "start": "09:00",
-      "end": "10:00",
-      "roomId": "R1",
-      "therapistId": "4",
-      "patientIds": [
-        "2"
-      ],
-      "specialty": "kinesiology"
-    },
-    {
-      "id": "sala colegio-visitadora 1-Monday-10:00",
+      "id": "s2-fono_1-Monday-10:00",
       "day": "Monday",
       "start": "10:00",
       "end": "11:00",
-      "roomId": "sala colegio",
-      "therapistId": "visitadora 1",
+      "roomId": "s2",
+      "therapyId": "fono_1",
       "patientIds": [
-        "2"
+        "joseto"
       ],
-      "specialty": "visita colegio"
+      "staff": [
+        {
+          "therapistId": "mau",
+          "specialty": "fono"
+        }
+      ]
     },
     {
-      "id": "4-T1-Monday-11:00",
-      "day": "Monday",
-      "start": "11:00",
-      "end": "12:00",
-      "roomId": "4",
-      "therapistId": "T1",
-      "patientIds": [
-        "7"
-      ],
-      "specialty": "phonoaudiology"
-    },
-    {
-      "id": "sala colegio-visitadora 1-Monday-11:00",
-      "day": "Monday",
-      "start": "11:00",
-      "end": "12:00",
-      "roomId": "sala colegio",
-      "therapistId": "visitadora 1",
-      "patientIds": [
-        "2"
-      ],
-      "specialty": "visita colegio"
-    },
-    {
-      "id": "R1-2-Monday-12:00",
-      "day": "Monday",
-      "start": "12:00",
-      "end": "13:00",
-      "roomId": "R1",
-      "therapistId": "2",
-      "patientIds": [
-        "3"
-      ],
-      "specialty": "kinesiology"
-    },
-    {
-      "id": "R1-T1-Monday-14:00",
-      "day": "Monday",
-      "start": "14:00",
-      "end": "15:00",
-      "roomId": "R1",
-      "therapistId": "T1",
-      "patientIds": [
-        "2",
-        "3",
-        "4"
-      ],
-      "specialty": "paes grupal"
-    },
-    {
-      "id": "R1-4-Monday-15:00",
-      "day": "Monday",
-      "start": "15:00",
-      "end": "16:00",
-      "roomId": "R1",
-      "therapistId": "4",
-      "patientIds": [
-        "4"
-      ],
-      "specialty": "kinesiology"
-    },
-    {
-      "id": "sala colegio-visitadora 1-Monday-15:00",
-      "day": "Monday",
-      "start": "15:00",
-      "end": "16:00",
-      "roomId": "sala colegio",
-      "therapistId": "visitadora 1",
-      "patientIds": [
-        "2"
-      ],
-      "specialty": "visita colegio"
-    },
-    {
-      "id": "4-T1-Monday-16:00",
-      "day": "Monday",
-      "start": "16:00",
-      "end": "17:00",
-      "roomId": "4",
-      "therapistId": "T1",
-      "patientIds": [
-        "4"
-      ],
-      "specialty": "phonoaudiology"
-    },
-    {
-      "id": "R1-4-Monday-16:00",
-      "day": "Monday",
-      "start": "16:00",
-      "end": "17:00",
-      "roomId": "R1",
-      "therapistId": "4",
-      "patientIds": [
-        "2"
-      ],
-      "specialty": "kinesiology"
-    },
-    {
-      "id": "4-T1-Thursday-09:00",
+      "id": "s1-kine_1-Thursday-11:00",
       "day": "Thursday",
+      "start": "11:00",
+      "end": "12:00",
+      "roomId": "s1",
+      "therapyId": "kine_1",
+      "patientIds": [
+        "agu"
+      ],
+      "staff": [
+        {
+          "therapistId": "mau",
+          "specialty": "kine"
+        }
+      ]
+    },
+    {
+      "id": "s2-fono_1-Tuesday-08:00",
+      "day": "Tuesday",
+      "start": "08:00",
+      "end": "09:00",
+      "roomId": "s2",
+      "therapyId": "fono_1",
+      "patientIds": [
+        "agu"
+      ],
+      "staff": [
+        {
+          "therapistId": "mau",
+          "specialty": "fono"
+        }
+      ]
+    },
+    {
+      "id": "s1-kine_1-Tuesday-09:00",
+      "day": "Tuesday",
       "start": "09:00",
       "end": "10:00",
-      "roomId": "4",
-      "therapistId": "T1",
+      "roomId": "s1",
+      "therapyId": "kine_1",
       "patientIds": [
-        "4"
+        "agu"
       ],
-      "specialty": "phonoaudiology"
+      "staff": [
+        {
+          "therapistId": "javi",
+          "specialty": "kine"
+        }
+      ]
     },
     {
-      "id": "R1-2-Thursday-14:00",
-      "day": "Thursday",
+      "id": "s1-kine_1-Tuesday-12:00",
+      "day": "Tuesday",
+      "start": "12:00",
+      "end": "13:00",
+      "roomId": "s1",
+      "therapyId": "kine_1",
+      "patientIds": [
+        "joseto"
+      ],
+      "staff": [
+        {
+          "therapistId": "maca",
+          "specialty": "kine"
+        }
+      ]
+    },
+    {
+      "id": "s2-fono_1-Tuesday-14:00",
+      "day": "Tuesday",
       "start": "14:00",
       "end": "15:00",
-      "roomId": "R1",
-      "therapistId": "2",
+      "roomId": "s2",
+      "therapyId": "fono_1",
       "patientIds": [
-        "4"
+        "joseto"
       ],
-      "specialty": "kinesiology"
+      "staff": [
+        {
+          "therapistId": "mau",
+          "specialty": "fono"
+        }
+      ]
     },
     {
-      "id": "4-T1-Tuesday-11:00",
-      "day": "Tuesday",
-      "start": "11:00",
-      "end": "12:00",
-      "roomId": "4",
-      "therapistId": "T1",
-      "patientIds": [
-        "4"
-      ],
-      "specialty": "phonoaudiology"
-    },
-    {
-      "id": "R1-T1-Tuesday-15:00",
+      "id": "s2-tea_group-Tuesday-15:00",
       "day": "Tuesday",
       "start": "15:00",
       "end": "16:00",
-      "roomId": "R1",
-      "therapistId": "T1",
+      "roomId": "s2",
+      "therapyId": "tea_group",
       "patientIds": [
-        "7"
+        "agu",
+        "joseto"
       ],
-      "specialty": "phonoaudiology"
+      "staff": [
+        {
+          "therapistId": "javi",
+          "specialty": "fono"
+        },
+        {
+          "therapistId": "mau",
+          "specialty": "kine"
+        }
+      ]
     },
     {
-      "id": "R1-4-Tuesday-17:00",
-      "day": "Tuesday",
-      "start": "17:00",
-      "end": "18:00",
-      "roomId": "R1",
-      "therapistId": "4",
-      "patientIds": [
-        "4"
-      ],
-      "specialty": "kinesiology"
-    },
-    {
-      "id": "R1-T1-Wednesday-16:00",
+      "id": "s1-kine_1-Wednesday-12:00",
       "day": "Wednesday",
-      "start": "16:00",
-      "end": "17:00",
-      "roomId": "R1",
-      "therapistId": "T1",
+      "start": "12:00",
+      "end": "13:00",
+      "roomId": "s1",
+      "therapyId": "kine_1",
       "patientIds": [
-        "7"
+        "agu"
       ],
-      "specialty": "phonoaudiology"
+      "staff": [
+        {
+          "therapistId": "mau",
+          "specialty": "kine"
+        }
+      ]
+    },
+    {
+      "id": "s2-fono_1-Wednesday-15:00",
+      "day": "Wednesday",
+      "start": "15:00",
+      "end": "16:00",
+      "roomId": "s2",
+      "therapyId": "fono_1",
+      "patientIds": [
+        "joseto"
+      ],
+      "staff": [
+        {
+          "therapistId": "mau",
+          "specialty": "fono"
+        }
+      ]
     }
   ]
 }
