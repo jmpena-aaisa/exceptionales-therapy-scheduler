@@ -12,7 +12,7 @@ import {
   upsertTherapy,
   upsertTherapist,
 } from '@/lib/api'
-import { formatAvailability, formatRequirements } from '@/lib/utils'
+import { formatRequirements } from '@/lib/utils'
 import type { Availability } from '@/lib/utils'
 import type { Entities, Patient, Room, Specialty, Therapist, Therapy } from '@/lib/schema'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,7 @@ import { downloadFile } from '@/lib/utils'
 import { AvailabilityGrid } from './availability-grid'
 import { SpecialtySelect } from './specialty-select'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 const ENTITY_KEY = ['entities']
 
@@ -577,12 +578,11 @@ export function EntitiesPanel() {
               </Dialog>
             </div>
             <EntityTable
-              headers={['ID', 'Nombre', 'Especialidades', 'Disponibilidad', 'Acciones']}
+              headers={['ID', 'Nombre', 'Especialidades', 'Acciones']}
               rows={entities.therapists.map((t) => [
                 t.id,
                 t.name,
                 t.specialties.join(', '),
-                formatAvailability(t.availability) || '—',
                 <RowActions key={t.id} onEdit={() => startEdit('therapists', t.id)} onDelete={() => handleDelete('therapists', t.id)} />,
               ])}
             />
@@ -701,12 +701,11 @@ export function EntitiesPanel() {
               </Dialog>
             </div>
             <EntityTable
-              headers={['ID', 'Nombre', 'Requerimientos', 'Disponibilidad', 'Restricciones', 'Acciones']}
+              headers={['ID', 'Nombre', 'Requerimientos', 'Restricciones', 'Acciones']}
               rows={entities.patients.map((p) => [
                 p.id,
                 p.name,
                 formatRequirements(p.therapies),
-                formatAvailability(p.availability) || '—',
                 (
                   <div className="space-y-1 text-xs" key={`${p.id}-rules`}>
                     {p.maxContinuousHours ? <Badge variant="outline">Max {p.maxContinuousHours}h</Badge> : null}
@@ -781,13 +780,12 @@ export function EntitiesPanel() {
               </Dialog>
             </div>
             <EntityTable
-              headers={['ID', 'Nombre', 'Terapias', 'Capacidad', 'Disponibilidad', 'Acciones']}
+              headers={['ID', 'Nombre', 'Terapias', 'Capacidad', 'Acciones']}
               rows={entities.rooms.map((r) => [
                 r.id,
                 r.name,
                 r.therapies.join(', '),
                 r.capacity,
-                formatAvailability(r.availability) || '—',
                 <RowActions key={r.id} onEdit={() => startEdit('rooms', r.id)} onDelete={() => handleDelete('rooms', r.id)} />,
               ])}
             />
@@ -801,31 +799,33 @@ export function EntitiesPanel() {
 type EntityTableProps = { headers: string[]; rows: (React.ReactNode | string | number)[][] }
 function EntityTable({ headers, rows }: EntityTableProps) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          {headers.map((h) => (
-            <TableHead key={h}>{h}</TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.length === 0 && (
+    <ScrollArea className="h-[260px] w-full pr-2" type="always">
+      <Table>
+        <TableHeader>
           <TableRow>
-            <TableCell colSpan={headers.length} className="text-center text-muted-foreground">
-              Sin datos
-            </TableCell>
-          </TableRow>
-        )}
-        {rows.map((row, idx) => (
-          <TableRow key={idx}>
-            {row.map((cell, cIdx) => (
-              <TableCell key={cIdx}>{cell}</TableCell>
+            {headers.map((h) => (
+              <TableHead key={h}>{h}</TableHead>
             ))}
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {rows.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={headers.length} className="text-center text-muted-foreground">
+                Sin datos
+              </TableCell>
+            </TableRow>
+          )}
+          {rows.map((row, idx) => (
+            <TableRow key={idx}>
+              {row.map((cell, cIdx) => (
+                <TableCell key={cIdx}>{cell}</TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </ScrollArea>
   )
 }
 

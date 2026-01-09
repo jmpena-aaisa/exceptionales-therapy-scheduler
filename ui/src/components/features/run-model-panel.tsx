@@ -65,7 +65,7 @@ export function RunModelPanel() {
       <CardContent className="text-sm text-muted-foreground">
         {result.startedAt && <p>Última ejecución: {new Date(result.startedAt).toLocaleString()}</p>}
         {result.finishedAt && <p>Finalizó: {new Date(result.finishedAt).toLocaleString()}</p>}
-        {result.diagnostics?.length ? <p>Notas: {result.diagnostics.join(' • ')}</p> : null}
+        {result.status !== 'failed' && result.diagnostics?.length ? <p>Notas: {result.diagnostics.join(' • ')}</p> : null}
         {result.status === 'failed' && hasDiagnostics ? (
           <div className="mt-3">
             <Button variant="outline" size="sm" onClick={() => setShowDiagnostics(true)}>
