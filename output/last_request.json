@@ -175,7 +175,8 @@
         "therapies": {
           "kine_1": 3,
           "tea_group": 1,
-          "fono_1": 1
+          "fono_1": 1,
+          "taller_2": 1
         },
         "availability": {
           "Monday": [
@@ -212,7 +213,8 @@
         "therapies": {
           "kine_1": 2,
           "tea_group": 1,
-          "fono_1": 4
+          "fono_1": 4,
+          "taller_2": 1
         },
         "availability": {
           "Monday": [

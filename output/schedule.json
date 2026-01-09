@@ -1,201 +1,89 @@
 {
-  "status": "success",
-  "startedAt": "2026-01-09T03:16:19.288907",
-  "finishedAt": "2026-01-09T03:16:19.435474",
-  "objectiveValue": 7.0,
-  "diagnostics": [],
-  "sessions": [
-    {
-      "id": "s1-kine_1-Friday-10:00",
-      "day": "Friday",
-      "start": "10:00",
-      "end": "11:00",
-      "roomId": "s1",
-      "therapyId": "kine_1",
-      "patientIds": [
-        "joseto"
-      ],
-      "staff": [
-        {
-          "therapistId": "mau",
-          "specialty": "kine"
-        }
-      ]
-    },
-    {
-      "id": "s2-fono_1-Friday-15:00",
-      "day": "Friday",
-      "start": "15:00",
-      "end": "16:00",
-      "roomId": "s2",
-      "therapyId": "fono_1",
-      "patientIds": [
-        "joseto"
-      ],
-      "staff": [
-        {
-          "therapistId": "mau",
-          "specialty": "fono"
-        }
-      ]
-    },
-    {
-      "id": "s2-fono_1-Monday-10:00",
-      "day": "Monday",
-      "start": "10:00",
-      "end": "11:00",
-      "roomId": "s2",
-      "therapyId": "fono_1",
-      "patientIds": [
-        "joseto"
-      ],
-      "staff": [
-        {
-          "therapistId": "mau",
-          "specialty": "fono"
-        }
-      ]
-    },
-    {
-      "id": "s1-kine_1-Thursday-11:00",
-      "day": "Thursday",
-      "start": "11:00",
-      "end": "12:00",
-      "roomId": "s1",
-      "therapyId": "kine_1",
-      "patientIds": [
-        "agu"
-      ],
-      "staff": [
-        {
-          "therapistId": "mau",
-          "specialty": "kine"
-        }
-      ]
-    },
-    {
-      "id": "s2-fono_1-Tuesday-08:00",
-      "day": "Tuesday",
-      "start": "08:00",
-      "end": "09:00",
-      "roomId": "s2",
-      "therapyId": "fono_1",
-      "patientIds": [
-        "agu"
-      ],
-      "staff": [
-        {
-          "therapistId": "mau",
-          "specialty": "fono"
-        }
-      ]
-    },
-    {
-      "id": "s1-kine_1-Tuesday-09:00",
-      "day": "Tuesday",
-      "start": "09:00",
-      "end": "10:00",
-      "roomId": "s1",
-      "therapyId": "kine_1",
-      "patientIds": [
-        "agu"
-      ],
-      "staff": [
-        {
-          "therapistId": "javi",
-          "specialty": "kine"
-        }
-      ]
-    },
-    {
-      "id": "s1-kine_1-Tuesday-12:00",
-      "day": "Tuesday",
-      "start": "12:00",
-      "end": "13:00",
-      "roomId": "s1",
-      "therapyId": "kine_1",
-      "patientIds": [
-        "joseto"
-      ],
-      "staff": [
-        {
-          "therapistId": "maca",
-          "specialty": "kine"
-        }
-      ]
-    },
-    {
-      "id": "s2-fono_1-Tuesday-14:00",
-      "day": "Tuesday",
-      "start": "14:00",
-      "end": "15:00",
-      "roomId": "s2",
-      "therapyId": "fono_1",
-      "patientIds": [
-        "joseto"
-      ],
-      "staff": [
-        {
-          "therapistId": "mau",
-          "specialty": "fono"
-        }
-      ]
-    },
-    {
-      "id": "s2-tea_group-Tuesday-15:00",
-      "day": "Tuesday",
-      "start": "15:00",
-      "end": "16:00",
-      "roomId": "s2",
-      "therapyId": "tea_group",
-      "patientIds": [
-        "agu",
-        "joseto"
-      ],
-      "staff": [
-        {
-          "therapistId": "javi",
-          "specialty": "fono"
-        },
-        {
-          "therapistId": "mau",
-          "specialty": "kine"
-        }
-      ]
-    },
-    {
-      "id": "s1-kine_1-Wednesday-12:00",
-      "day": "Wednesday",
-      "start": "12:00",
-      "end": "13:00",
-      "roomId": "s1",
-      "therapyId": "kine_1",
-      "patientIds": [
-        "agu"
-      ],
-      "staff": [
-        {
-          "therapistId": "mau",
-          "specialty": "kine"
-        }
-      ]
-    },
-    {
-      "id": "s2-fono_1-Wednesday-15:00",
-      "day": "Wednesday",
-      "start": "15:00",
-      "end": "16:00",
-      "roomId": "s2",
-      "therapyId": "fono_1",
-      "patientIds": [
-        "joseto"
-      ],
-      "staff": [
-        {
-          "therapistId": "mau",
-          "specialty": "fono"
-        }
-      ]
-    }
-  ]
+  "status": "failed",
+  "startedAt": "2026-01-09T12:18:46.201331",
+  "finishedAt": "2026-01-09T12:18:46.440696",
+  "objectiveValue": 0.0,
+  "diagnostics": [
+    "assumptions: Session capacity/min patients for therapy 'kine_1'.",
+    "assumptions: Session capacity/min patients for therapy 'tea_group'.",
+    "assumptions: Session capacity/min patients for therapy 'fono_1'.",
+    "assumptions: Staffing requirement for therapy 'kine_1' specialty 'kine'.",
+    "assumptions: Staffing requirement for therapy 'tea_group' specialty 'kine'.",
+    "assumptions: Staffing requirement for therapy 'tea_group' specialty 'fono'.",
+    "assumptions: Staffing requirement for therapy 'fono_1' specialty 'fono'.",
+    "assumptions: Patient agu required sessions for therapy 'kine_1'.",
+    "assumptions: Patient agu required sessions for therapy 'tea_group'.",
+    "assumptions: Patient agu required sessions for therapy 'fono_1'.",
+    "assumptions: Patient agu required sessions for therapy 'taller_2'.",
+    "assumptions: Patient joseto required sessions for therapy 'kine_1'.",
+    "assumptions: Patient joseto required sessions for therapy 'tea_group'.",
+    "assumptions: Patient joseto required sessions for therapy 'fono_1'.",
+    "assumptions: Patient joseto required sessions for therapy 'taller_2'.",
+    "assumptions: Patient agu no_same_day for therapy 'fono_1'.",
+    "assumptions: Patient agu no_same_day for therapy 'tea_group'.",
+    "assumptions: Patient agu no_same_day for therapy 'kine_1'.",
+    "assumptions: Patient joseto no_same_day for therapy 'fono_1'.",
+    "assumptions: Patient joseto no_same_day for therapy 'tea_group'.",
+    "assumptions: Patient joseto no_same_day for therapy 'kine_1'.",
+    "assumptions: Patient agu one-session-per-time constraint.",
+    "assumptions: Patient joseto one-session-per-time constraint.",
+    "assumptions: Patient agu continuous hours limit.",
+    "assumptions: Patient joseto continuous hours limit.",
+    "assumptions: Therapist javi one-session-per-time constraint.",
+    "assumptions: Therapist fono_1 one-session-per-time constraint.",
+    "assumptions: Therapist maca one-session-per-time constraint.",
+    "assumptions: Therapist mau one-session-per-time constraint.",
+    "assumptions: Room s1 one-session-per-time constraint.",
+    "assumptions: Room s2 one-session-per-time constraint.",
+    "prechecks: Patient agu needs 'taller_2', but no rooms allow this therapy.",
+    "prechecks: Patient joseto needs 'taller_2', but no rooms allow this therapy.",
+    "prechecks: Therapy 'taller_2' is not allowed in any room.",
+    "soft: Patient agu missing 1 session(s) of therapy 'taller_2'.",
+    "soft: Patient joseto missing 1 session(s) of therapy 'taller_2'."
+  ],
+  "diagnosticsByMethod": {
+    "assumptions": [
+      "Session capacity/min patients for therapy 'kine_1'.",
+      "Session capacity/min patients for therapy 'tea_group'.",
+      "Session capacity/min patients for therapy 'fono_1'.",
+      "Staffing requirement for therapy 'kine_1' specialty 'kine'.",
+      "Staffing requirement for therapy 'tea_group' specialty 'kine'.",
+      "Staffing requirement for therapy 'tea_group' specialty 'fono'.",
+      "Staffing requirement for therapy 'fono_1' specialty 'fono'.",
+      "Patient agu required sessions for therapy 'kine_1'.",
+      "Patient agu required sessions for therapy 'tea_group'.",
+      "Patient agu required sessions for therapy 'fono_1'.",
+      "Patient agu required sessions for therapy 'taller_2'.",
+      "Patient joseto required sessions for therapy 'kine_1'.",
+      "Patient joseto required sessions for therapy 'tea_group'.",
+      "Patient joseto required sessions for therapy 'fono_1'.",
+      "Patient joseto required sessions for therapy 'taller_2'.",
+      "Patient agu no_same_day for therapy 'fono_1'.",
+      "Patient agu no_same_day for therapy 'tea_group'.",
+      "Patient agu no_same_day for therapy 'kine_1'.",
+      "Patient joseto no_same_day for therapy 'fono_1'.",
+      "Patient joseto no_same_day for therapy 'tea_group'.",
+      "Patient joseto no_same_day for therapy 'kine_1'.",
+      "Patient agu one-session-per-time constraint.",
+      "Patient joseto one-session-per-time constraint.",
+      "Patient agu continuous hours limit.",
+      "Patient joseto continuous hours limit.",
+      "Therapist javi one-session-per-time constraint.",
+      "Therapist fono_1 one-session-per-time constraint.",
+      "Therapist maca one-session-per-time constraint.",
+      "Therapist mau one-session-per-time constraint.",
+      "Room s1 one-session-per-time constraint.",
+      "Room s2 one-session-per-time constraint."
+    ],
+    "prechecks": [
+      "Patient agu needs 'taller_2', but no rooms allow this therapy.",
+      "Patient joseto needs 'taller_2', but no rooms allow this therapy.",
+      "Therapy 'taller_2' is not allowed in any room."
+    ],
+    "soft": [
+      "Patient agu missing 1 session(s) of therapy 'taller_2'.",
+      "Patient joseto missing 1 session(s) of therapy 'taller_2'."
+    ]
+  },
+  "sessions": []
 }

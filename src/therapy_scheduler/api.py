@@ -95,6 +95,7 @@ class ScheduleResponse(BaseModel):
     finishedAt: Optional[str]
     objectiveValue: Optional[float]
     diagnostics: List[str] = Field(default_factory=list)
+    diagnosticsByMethod: Dict[str, List[str]] = Field(default_factory=dict)
     sessions: List[ScheduleSession] = Field(default_factory=list)
 
 
@@ -257,6 +258,7 @@ def run_solver_endpoint(req: RunRequest) -> ScheduleResponse:
         "finishedAt": finished_at,
         "objectiveValue": result.objective_value,
         "diagnostics": result.diagnostics,
+        "diagnosticsByMethod": result.diagnostics_by_method,
         "sessions": [s.dict() for s in sessions],
     }
 

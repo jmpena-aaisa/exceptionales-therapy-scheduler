@@ -76,6 +76,7 @@ export const scheduleResultSchema = z.object({
   finishedAt: z.string().optional(),
   objectiveValue: z.number().optional(),
   diagnostics: z.array(z.string()).optional(),
+  diagnosticsByMethod: z.record(z.string(), z.array(z.string())).optional(),
   sessions: z.array(scheduleSessionSchema).default([]),
 })
 
