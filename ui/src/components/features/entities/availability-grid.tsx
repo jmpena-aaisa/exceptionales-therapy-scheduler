@@ -13,12 +13,7 @@ type AvailabilityGridProps = {
 export function AvailabilityGrid({ value = {}, onChange }: AvailabilityGridProps) {
   const selected = useMemo(() => buildSelectedSet(value), [value])
 
-  const toggle = (day: string, slot: string) => {
-    const key = `${day}|${slot}`
-    const nextSelected = new Set(selected)
-    if (nextSelected.has(key)) nextSelected.delete(key)
-    else nextSelected.add(key)
-
+  const applySelection = (nextSelected: Set<string>) => {
     const nextValue: Availability = {}
     DAYS.forEach((d) => {
       const daySlots = Array.from(nextSelected)
@@ -30,20 +25,61 @@ export function AvailabilityGrid({ value = {}, onChange }: AvailabilityGridProps
     onChange(nextValue)
   }
 
+  const toggle = (day: string, slot: string) => {
+    const key = `${day}|${slot}`
+    const nextSelected = new Set(selected)
+    if (nextSelected.has(key)) nextSelected.delete(key)
+    else nextSelected.add(key)
+    applySelection(nextSelected)
+  }
+
+  const toggleDay = (day: string) => {
+    const keys = HOUR_SLOTS.map((slot) => `${day}|${slot}`)
+    const allSelected = keys.every((key) => selected.has(key))
+    const nextSelected = new Set(selected)
+    keys.forEach((key) => {
+      if (allSelected) nextSelected.delete(key)
+      else nextSelected.add(key)
+    })
+    applySelection(nextSelected)
+  }
+
+  const toggleSlotColumn = (slot: string) => {
+    const keys = DAYS.map((day) => `${day}|${slot}`)
+    const allSelected = keys.every((key) => selected.has(key))
+    const nextSelected = new Set(selected)
+    keys.forEach((key) => {
+      if (allSelected) nextSelected.delete(key)
+      else nextSelected.add(key)
+    })
+    applySelection(nextSelected)
+  }
+
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[720px] overflow-hidden rounded-lg border border-border/70">
         <div className="grid grid-cols-[120px_repeat(10,1fr)] text-xs">
           <div className="bg-secondary px-3 py-2 font-semibold text-foreground">Día</div>
           {HOUR_SLOTS.map((slot) => (
-            <div key={`head-${slot}`} className="border-l border-border/70 bg-secondary/60 px-2 py-2 text-center font-semibold text-muted-foreground">
+            <button
+              type="button"
+              key={`head-${slot}`}
+              onClick={() => toggleSlotColumn(slot)}
+              className="border-l border-border/70 bg-secondary/60 px-2 py-2 text-center font-semibold text-muted-foreground transition-colors hover:bg-secondary"
+            >
               {slot.split('-')[0]}
-            </div>
+            </button>
           ))}
         </div>
         {DAYS.map((day) => (
           <div key={day} className="grid grid-cols-[120px_repeat(10,1fr)] border-t border-border/70 text-xs">
-            <div className="flex items-center bg-secondary/40 px-3 py-2 text-sm font-semibold text-foreground">{day}</div>
+            <button
+              type="button"
+              onClick={() => toggleDay(day)}
+              className="flex items-center bg-secondary/40 px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-secondary/60"
+            >
+              {day}
+            </button>
             {HOUR_SLOTS.map((slot) => {
               const isSelected = selected.has(`${day}|${slot}`)
               return (

@@ -1,50 +1,16 @@
 {
   "status": "success",
-  "startedAt": "2026-01-09T14:28:46.491583",
-  "finishedAt": "2026-01-09T14:28:46.528853",
+  "startedAt": "2026-01-09T14:44:42.566229",
+  "finishedAt": "2026-01-09T14:44:42.640871",
   "objectiveValue": 3.0,
   "diagnostics": [],
   "diagnosticsByMethod": {},
   "sessions": [
     {
-      "id": "s2-fono_1-Monday-14:00",
-      "day": "Monday",
-      "start": "14:00",
-      "end": "15:00",
-      "roomId": "s2",
-      "therapyId": "fono_1",
-      "patientIds": [
-        "agu"
-      ],
-      "staff": [
-        {
-          "therapistId": "maca",
-          "specialty": "fono"
-        }
-      ]
-    },
-    {
-      "id": "s1-kine_1-Monday-15:00",
-      "day": "Monday",
+      "id": "s2-fono_1-Thursday-15:00",
+      "day": "Thursday",
       "start": "15:00",
       "end": "16:00",
-      "roomId": "s1",
-      "therapyId": "kine_1",
-      "patientIds": [
-        "agu"
-      ],
-      "staff": [
-        {
-          "therapistId": "javi",
-          "specialty": "kine"
-        }
-      ]
-    },
-    {
-      "id": "s2-fono_1-Tuesday-08:00",
-      "day": "Tuesday",
-      "start": "08:00",
-      "end": "09:00",
       "roomId": "s2",
       "therapyId": "fono_1",
       "patientIds": [
@@ -58,42 +24,8 @@
       ]
     },
     {
-      "id": "s1-kine_1-Tuesday-10:00",
-      "day": "Tuesday",
-      "start": "10:00",
-      "end": "11:00",
-      "roomId": "s1",
-      "therapyId": "kine_1",
-      "patientIds": [
-        "agu"
-      ],
-      "staff": [
-        {
-          "therapistId": "javi",
-          "specialty": "kine"
-        }
-      ]
-    },
-    {
-      "id": "s2-fono_1-Wednesday-14:00",
-      "day": "Wednesday",
-      "start": "14:00",
-      "end": "15:00",
-      "roomId": "s2",
-      "therapyId": "fono_1",
-      "patientIds": [
-        "agu"
-      ],
-      "staff": [
-        {
-          "therapistId": "maca",
-          "specialty": "fono"
-        }
-      ]
-    },
-    {
-      "id": "s1-kine_1-Wednesday-17:00",
-      "day": "Wednesday",
+      "id": "s1-kine_1-Thursday-17:00",
+      "day": "Thursday",
       "start": "17:00",
       "end": "18:00",
       "roomId": "s1",
@@ -105,6 +37,74 @@
         {
           "therapistId": "javi",
           "specialty": "kine"
+        }
+      ]
+    },
+    {
+      "id": "s2-fono_1-Tuesday-15:00",
+      "day": "Tuesday",
+      "start": "15:00",
+      "end": "16:00",
+      "roomId": "s2",
+      "therapyId": "fono_1",
+      "patientIds": [
+        "agu"
+      ],
+      "staff": [
+        {
+          "therapistId": "maca",
+          "specialty": "fono"
+        }
+      ]
+    },
+    {
+      "id": "s1-kine_1-Tuesday-17:00",
+      "day": "Tuesday",
+      "start": "17:00",
+      "end": "18:00",
+      "roomId": "s1",
+      "therapyId": "kine_1",
+      "patientIds": [
+        "agu"
+      ],
+      "staff": [
+        {
+          "therapistId": "javi",
+          "specialty": "kine"
+        }
+      ]
+    },
+    {
+      "id": "s1-kine_1-Wednesday-11:00",
+      "day": "Wednesday",
+      "start": "11:00",
+      "end": "12:00",
+      "roomId": "s1",
+      "therapyId": "kine_1",
+      "patientIds": [
+        "agu"
+      ],
+      "staff": [
+        {
+          "therapistId": "javi",
+          "specialty": "kine"
+        }
+      ]
+    },
+    {
+      "id": "s2-fono_1-Wednesday-12:00",
+      "day": "Wednesday",
+      "start": "12:00",
+      "end": "13:00",
+      "roomId": "s2",
+      "therapyId": "fono_1",
+      "patientIds": [
+        "agu"
+      ],
+      "staff": [
+        {
+          "therapistId": "maca",
+          "specialty": "fono"
         }
       ]
     }
