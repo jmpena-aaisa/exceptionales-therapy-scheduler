@@ -42,3 +42,12 @@ ui/dist/
 *.swo
 *.tmp
 *~
+
+# Terraform
+infra/terraform/terraform.tfvars
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+
+# Runtime data
+users/users.csv
+sessions/

@@ -1,15 +1,19 @@
 import { useMemo } from 'react'
 import { toast } from 'sonner'
 import { EntitiesPanel } from '@/components/features/entities/entities-panel'
+import { LoginDialogButton } from '@/components/features/login-dialog'
 import { ResultsPanel } from '@/components/features/results/results-panel'
 import { RunModelPanel } from '@/components/features/run-model-panel'
 import { Button } from '@/components/ui/button'
 import { downloadExcel } from '@/lib/api'
 import { downloadFile } from '@/lib/utils'
+import { useAuthStore } from '@/lib/state'
 import { useScheduleStore } from '@/lib/state'
 
 function App() {
   const { result } = useScheduleStore()
+  const { token } = useAuthStore()
+  const isLoggedIn = Boolean(token)
   const hasResults = useMemo(() => result.sessions.length > 0, [result.sessions])
 
   const exportResult = () => {
@@ -19,10 +23,10 @@ function App() {
 
   const handleExcel = async () => {
     try {
-      await downloadExcel()
+      await downloadExcel(result.sessionId)
       toast.success('Descarga iniciada')
     } catch (error) {
-      toast.error('No encontré output/schedule.xlsx. Ejecuta el modelo primero.')
+      toast.error('No encontré el Excel. Ejecuta el modelo o verifica la sesión.')
       console.error(error)
     }
   }
@@ -41,20 +45,33 @@ function App() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={handleExcel}>
-              Descargar Excel
-            </Button>
-            <Button variant="outline" disabled={!hasResults} onClick={exportResult}>
-              Exportar resultado JSON
-            </Button>
+            {isLoggedIn ? (
+              <>
+                <Button variant="outline" onClick={handleExcel}>
+                  Descargar Excel
+                </Button>
+                <Button variant="outline" disabled={!hasResults} onClick={exportResult}>
+                  Exportar resultado JSON
+                </Button>
+              </>
+            ) : null}
+            <LoginDialogButton />
           </div>
         </div>
       </header>
 
       <main className="container flex flex-col gap-6 py-6">
-        <RunModelPanel />
-        <EntitiesPanel />
-        <ResultsPanel />
+        {isLoggedIn ? (
+          <>
+            <RunModelPanel />
+            <EntitiesPanel />
+            <ResultsPanel />
+          </>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border/70 bg-white/70 p-10 text-center text-sm text-muted-foreground">
+            Inicia sesion para acceder al panel de configuracion y ejecutar el modelo.
+          </div>
+        )}
       </main>
     </div>
   )

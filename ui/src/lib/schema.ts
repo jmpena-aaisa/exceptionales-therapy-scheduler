@@ -80,6 +80,8 @@ export const scheduleSessionSchema = z.object({
 export type ScheduleSession = z.infer<typeof scheduleSessionSchema>
 
 export const scheduleResultSchema = z.object({
+  sessionId: z.string().optional(),
+  userId: z.string().optional(),
   status: z.enum(['idle', 'running', 'success', 'failed']).default('idle'),
   startedAt: z.string().optional(),
   finishedAt: z.string().optional(),
@@ -90,6 +92,16 @@ export const scheduleResultSchema = z.object({
 })
 
 export type ScheduleResult = z.infer<typeof scheduleResultSchema>
+
+export const loginResponseSchema = z.object({
+  userId: z.string(),
+  email: z.string(),
+  token: z.string(),
+  tokenType: z.string().default('Bearer'),
+  expiresAt: z.string(),
+})
+
+export type LoginResponse = z.infer<typeof loginResponseSchema>
 
 export const importPayloadSchema = entitiesSchema
 export type ImportPayload = z.infer<typeof importPayloadSchema>

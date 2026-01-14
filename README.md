@@ -98,26 +98,211 @@ Planificador semanal de terapias basado en optimización de restricciones (OR-To
   make run-local HYDRA_ARGS="objectives.patient_days_weight=2"   # ejecutar con uv local
   ```
 
-## Run with Docker
+## Ejecutar con Docker
 ```bash
 make optimize              # build image and run solver
 make docker-run HYDRA_ARGS="solver.time_limit=10.0"  # pass Hydra overrides
 ```
-The run target mounts `./output` so `output/schedule.json` persists on the host.
+El target monta `./output` para que `output/schedule.json` persista en el host.
 
-## Run locally (optional)
+## Ejecutar local (opcional)
 ```bash
 uv pip install --system --editable .
 uv run python -m therapy_scheduler.main
 ```
 
-## Configuration
-- Problem instance path: `config/config.yaml` → `data.instance_path`
-- Objective weights: `config/objectives/default_objectives.yaml`
-- Solver options: `config/config.yaml` (`solver.time_limit`, `solver.log_search_progress`)
-- Patient optional constraint: `no_same_day_therapies` disallows multiple sessions of listed therapies on the same day for that patient.
+### Backend API local (FastAPI)
+En una terminal:
+```bash
+make api
+```
 
-You can override any config key via Hydra CLI syntax, e.g.:
+### UI local (Vite)
+En otra terminal:
+```bash
+cd ui
+VITE_API_BASE=http://localhost:8000 npm install
+VITE_API_BASE=http://localhost:8000 npm run dev
+```
+
+### Autenticación (UI y API)
+- La UI muestra un botón de **Iniciar sesión** arriba a la derecha.  
+  Sin login, el resto de los paneles queda oculto.
+- El backend valida contra `users/users.csv` (local) o `gs://<data-bucket>/users/users.csv` (GCS).
+- Las entidades se guardan por usuario en `users/<user_id>/entities.json` dentro del bucket de datos.
+- Endpoint de login:
+  ```text
+  POST /api/login  { "email": "...", "password": "..." }
+  ```
+  Devuelve un token tipo Bearer; úsalo en:
+  ```text
+  Authorization: Bearer <TOKEN>
+  ```
+
+## Configuración
+- Ruta de instancia: `config/config.yaml` → `data.instance_path`
+- Pesos del objetivo: `config/objectives/default_objectives.yaml`
+- Opciones del solver: `config/config.yaml` (`solver.time_limit`, `solver.log_search_progress`)
+- Restricción opcional de paciente: `no_same_day_therapies` evita múltiples sesiones del mismo día para esas terapias.
+
+Puedes overridear cualquier clave de config con Hydra CLI, por ejemplo:
 ```bash
 uv run python -m therapy_scheduler.main objectives.patient_days_weight=2 solver.time_limit=20
 ```
+
+## Despliegue (GCP, desde cero)
+Este es un flujo reproducible y basado en comandos, desde una cuenta nueva de GCP hasta la app funcionando.
+
+### 0) Requisitos previos
+- Instalar: `gcloud`, `docker`, `terraform`, `node` (para build de UI).
+- Iniciar sesión en la cuenta correcta:
+  ```bash
+  gcloud auth login
+  gcloud auth application-default login
+  ```
+
+### 1) Crear un proyecto de GCP y habilitar facturación
+- Crear un proyecto nuevo en la consola de GCP y vincular facturación.
+- Setear el proyecto y región activos localmente:
+  ```bash
+  export PROJECT_ID="your-project-id"
+  export REGION="southamerica-west1"
+  gcloud config set project "$PROJECT_ID"
+  ```
+
+### 2) Elegir nombres de buckets (deben ser únicos globalmente)
+Define dos nombres:
+- Bucket de datos: sesiones y `users.csv`
+- Bucket de UI: frontend estático
+
+Ejemplo:
+```bash
+export DATA_BUCKET="exceptionales-scheduler-data-<unique>"
+export UI_BUCKET="exceptionales-scheduler-ui-<unique>"
+```
+
+### 3) Crear variables de Terraform
+Crear `infra/terraform/terraform.tfvars`:
+```hcl
+project_id       = "your-project-id"
+region           = "southamerica-west1"
+data_bucket_name = "your-data-bucket"
+ui_bucket_name   = "your-ui-bucket"
+auth_secret      = "your-long-random-secret"
+image_tag        = "latest"
+```
+
+Generar un secreto fuerte:
+```bash
+openssl rand -hex 32
+```
+
+### 4) Build y push de la imagen API (linux/amd64)
+Autenticar Docker contra Artifact Registry:
+```bash
+gcloud auth configure-docker "${REGION}-docker.pkg.dev"
+```
+
+Usa el target de Make (buildx + amd64). Para forzar un nuevo despliegue, usa un tag nuevo:
+```bash
+export IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
+GCP_PROJECT="$PROJECT_ID" \
+GCP_REGION="$REGION" \
+AR_REPO="therapy-scheduler" \
+AR_IMAGE="therapy-scheduler-api" \
+AR_TAG="$IMAGE_TAG" \
+make api-image-push
+```
+
+### 5) Crear la infraestructura (Cloud Run + buckets)
+```bash
+cd infra/terraform
+terraform init
+terraform apply
+```
+
+Atajo recomendado (push + terraform apply):
+```bash
+export IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
+GCP_PROJECT="$PROJECT_ID" \
+GCP_REGION="$REGION" \
+AR_REPO="therapy-scheduler" \
+AR_IMAGE="therapy-scheduler-api" \
+AR_TAG="$IMAGE_TAG" \
+make cloud-run-deploy
+```
+
+Obtener la URL de Cloud Run:
+```bash
+terraform output -raw service_url
+```
+
+### 6) Crear users.csv y subirlo
+Crear un archivo con este header:
+```csv
+user_id,email,password_hash,created_at,disabled
+```
+
+Puedes partir desde el ejemplo:
+```bash
+cp users/users.example.csv users/users.csv
+```
+
+Generar un hash de password:
+```bash
+python - <<'PY'
+from therapy_scheduler.auth import hash_password
+print(hash_password("change-me"))
+PY
+```
+
+Ejemplo:
+```csv
+u_001,ana@example.com,pbkdf2_sha256$240000$...,2024-01-01T00:00:00Z,false
+```
+
+Subir a GCS:
+```bash
+gcloud storage cp users/users.csv gs://your-data-bucket/users/users.csv
+```
+
+### 7) Build y despliegue de la UI (estática)
+Usa la URL de Cloud Run como API base:
+```bash
+cd ui
+VITE_API_BASE=<CLOUD_RUN_URL> npm install
+VITE_API_BASE=<CLOUD_RUN_URL> npm run build
+gcloud storage rsync -r dist gs://your-ui-bucket
+```
+
+Abrir la UI:
+```text
+https://storage.googleapis.com/your-ui-bucket/index.html
+```
+
+### 8) Prueba rápida
+Inicia sesión con tu usuario y ejecuta el modelo. La API persiste:
+- `sessions/<user>/<session>/request.json`
+- `sessions/<user>/<session>/schedule.json`
+- `sessions/<user>/<session>/schedule.xlsx`
+
+### Limpieza / rollback
+Si necesitas desmontar todo:
+```bash
+gcloud storage rm -r gs://your-ui-bucket/**
+gcloud storage rm -r gs://your-data-bucket/**
+cd infra/terraform
+terraform destroy
+```
+
+Si `terraform destroy` falla por imágenes en Artifact Registry, elimina el repo con:
+```bash
+gcloud artifacts repositories delete therapy-scheduler \
+  --location "$REGION" \
+  --delete-contents
+```
+
+### Notas
+- Cloud Run usa `SCHEDULER_REQUIRE_AUTH=true` por defecto en Terraform.
+- El bucket de datos es privado (public access prevention).
+- Antes de producción, restringe CORS en `src/therapy_scheduler/api.py` al dominio de la UI.

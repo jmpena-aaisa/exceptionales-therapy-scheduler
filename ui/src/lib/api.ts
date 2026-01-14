@@ -1,8 +1,23 @@
-import { entitiesSchema, importPayloadSchema, scheduleResultSchema, type Entities, type ImportPayload, type ScheduleResult, type Therapist, type Patient, type Room, type Specialty, type Therapy } from './schema'
+import {
+  entitiesSchema,
+  importPayloadSchema,
+  loginResponseSchema,
+  scheduleResultSchema,
+  type Entities,
+  type ImportPayload,
+  type LoginResponse,
+  type ScheduleResult,
+  type Therapist,
+  type Patient,
+  type Room,
+  type Specialty,
+  type Therapy,
+} from './schema'
+import { readAuthFromStorage } from './auth'
 import { downloadFile } from './utils'
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
-const STORAGE_KEY = 'therapy-scheduler:entities'
+const STORAGE_KEY_PREFIX = 'therapy-scheduler:entities'
 
 const seedEntities: Entities = {
   therapists: [],
@@ -12,9 +27,15 @@ const seedEntities: Entities = {
   therapies: [],
 }
 
+function storageKey(): string {
+  const auth = readAuthFromStorage()
+  const suffix = auth?.userId ? `:${auth.userId}` : ''
+  return `${STORAGE_KEY_PREFIX}${suffix}`
+}
+
 function readFromStorage(): Entities {
   if (typeof localStorage === 'undefined') return seedEntities
-  const raw = localStorage.getItem(STORAGE_KEY)
+  const raw = localStorage.getItem(storageKey())
   if (!raw) return seedEntities
   try {
     return entitiesSchema.parse(JSON.parse(raw))
@@ -26,15 +47,57 @@ function readFromStorage(): Entities {
 
 function writeToStorage(entities: Entities) {
   if (typeof localStorage === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entities))
+  localStorage.setItem(storageKey(), JSON.stringify(entities))
+}
+
+function buildAuthHeaders(): Record<string, string> {
+  const auth = readAuthFromStorage()
+  if (!auth) return {}
+  if (auth.token) {
+    return { Authorization: `Bearer ${auth.token}` }
+  }
+  if (auth.userId) {
+    return { 'X-User-Id': auth.userId }
+  }
+  return {}
 }
 
 export async function fetchEntities(): Promise<Entities> {
+  const authHeaders = buildAuthHeaders()
+  if (Object.keys(authHeaders).length > 0) {
+    const response = await fetch(`${API_BASE}/api/entities`, { headers: authHeaders })
+    if (response.ok) {
+      const json = await response.json()
+      const parsed = entitiesSchema.parse(json)
+      writeToStorage(parsed)
+      return parsed
+    }
+    if (response.status !== 404) {
+      const text = await response.text()
+      throw new Error(text || 'No se pudo cargar las entidades.')
+    }
+  }
   return readFromStorage()
 }
 
 export async function saveEntities(next: Entities): Promise<Entities> {
   const parsed = entitiesSchema.parse(next)
+  const authHeaders = buildAuthHeaders()
+  if (Object.keys(authHeaders).length > 0) {
+    const response = await fetch(`${API_BASE}/api/entities`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      body: JSON.stringify(parsed),
+    })
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(text || 'No se pudo guardar las entidades.')
+    }
+    const json = await response.json()
+    const saved = entitiesSchema.parse(json)
+    writeToStorage(saved)
+    return saved
+  }
   writeToStorage(parsed)
   return parsed
 }
@@ -91,15 +154,29 @@ export async function importEntities(payload: ImportPayload): Promise<Entities> 
 }
 
 export async function exportEntities(): Promise<string> {
-  const data = readFromStorage()
+  const data = await fetchEntities()
   return JSON.stringify(data, null, 2)
 }
 
-export async function runModel(): Promise<ScheduleResult> {
-  const entities = readFromStorage()
-  const response = await fetch(`${API_BASE}/api/run`, {
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE}/api/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || 'No se pudo iniciar sesión.')
+  }
+  const json = await response.json()
+  return loginResponseSchema.parse(json)
+}
+
+export async function runModel(): Promise<ScheduleResult> {
+  const entities = await fetchEntities()
+  const response = await fetch(`${API_BASE}/api/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...buildAuthHeaders() },
     body: JSON.stringify({ entities }),
   })
   if (!response.ok) {
@@ -110,8 +187,12 @@ export async function runModel(): Promise<ScheduleResult> {
   return scheduleResultSchema.parse(json)
 }
 
-export async function downloadExcel(): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/download/excel`)
+export async function downloadExcel(sessionId?: string): Promise<void> {
+  const url = new URL(`${API_BASE}/api/download/excel`)
+  if (sessionId) {
+    url.searchParams.set('sessionId', sessionId)
+  }
+  const response = await fetch(url.toString(), { headers: buildAuthHeaders() })
   if (!response.ok) throw new Error('Excel no disponible todavía.')
   const blob = await response.blob()
   downloadFile('schedule.xlsx', blob)

@@ -1,0 +1,6 @@
+project_id       = "your-project-id"
+region           = "southamerica-west1"
+data_bucket_name = "exceptionales-scheduler-data-unique"
+ui_bucket_name   = "exceptionales-scheduler-ui-unique"
+auth_secret      = "your-long-random-secret"
+image_tag        = "latest"

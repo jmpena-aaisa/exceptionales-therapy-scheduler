@@ -1,0 +1,3 @@
+user_id,email,password_hash,created_at,disabled
+demo1,demo1@example.com,pbkdf2_sha256$240000$pzpnHYMAOKsL38S1yjDtXA$FsUZwu0uYhiNIo46da45hoekb-bGKn82zB4sqqMcMgA,2024-01-01T00:00:00Z,false
+demo2,demo2@example.com,pbkdf2_sha256$240000$SIyEXwcpN5itG8jrpPAvbw$qwvSiiNqJ-b10rAIJuWo4tS0_Hr6R-eHb0Ivfi1rWiQ,2024-01-01T00:00:00Z,false

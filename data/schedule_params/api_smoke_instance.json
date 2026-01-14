@@ -1,0 +1,52 @@
+{
+  "specialties": [
+    "kinesiology"
+  ],
+  "therapies": [
+    {
+      "id": "kine_1",
+      "requirements": {
+        "kinesiology": 1
+      },
+      "min_patients": 1,
+      "max_patients": 1
+    }
+  ],
+  "therapists": [
+    {
+      "id": "T1",
+      "specialties": [
+        "kinesiology"
+      ],
+      "availability": {
+        "Monday": [
+          "08:00-09:00"
+        ]
+      }
+    }
+  ],
+  "patients": [
+    {
+      "id": "P1",
+      "therapies": {
+        "kine_1": 1
+      },
+      "no_same_day_therapies": [],
+      "availability": {
+        "Monday": [
+          "08:00-09:00"
+        ]
+      },
+      "max_continuous_hours": 1
+    }
+  ],
+  "rooms": [
+    {
+      "id": "R1",
+      "therapies": [
+        "kine_1"
+      ],
+      "capacity": 1
+    }
+  ]
+}
