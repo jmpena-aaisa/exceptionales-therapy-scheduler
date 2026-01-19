@@ -2,6 +2,11 @@ import { z } from 'zod'
 
 export const availabilitySchema = z.record(z.string(), z.array(z.string()))
 
+export const pinnedSessionSchema = z.object({
+  day: z.string().min(1),
+  time: z.string().min(1),
+})
+
 export const therapistSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -25,6 +30,7 @@ export const patientSchema = z.object({
       ),
     )
     .optional(),
+  pinnedSessions: z.record(z.string(), z.array(pinnedSessionSchema)).optional(),
 })
 
 export const roomSchema = z.object({

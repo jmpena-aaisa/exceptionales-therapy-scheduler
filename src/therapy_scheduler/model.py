@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from ortools.sat.python import cp_model
 
@@ -86,13 +86,21 @@ def build_base_variables(
                             model.Add(staff_var <= session_var)
 
     for patient in instance.patients:
+        pinned_by_therapy: Dict[str, Dict[str, Set[int]]] = {}
+        for therapy_id, slots in patient.pinned_sessions.items():
+            for slot in slots:
+                pinned_by_therapy.setdefault(therapy_id, {}).setdefault(
+                    slot.day, set()
+                ).add(slot.block)
         for therapy_id, required in patient.therapies.items():
             if required <= 0:
                 continue
             for day in DAY_ORDER:
-                if day not in patient.availability:
+                blocks = set(patient.availability.get(day, set()))
+                blocks.update(pinned_by_therapy.get(therapy_id, {}).get(day, set()))
+                if not blocks:
                     continue
-                for block in patient.availability.get(day, set()):
+                for block in blocks:
                     for room in instance.rooms:
                         if therapy_id not in room.therapies:
                             continue
@@ -247,6 +255,7 @@ class SchedulerModel:
         self._session_capacity_constraints()
         self._staffing_requirements()
         self._patient_requirements()
+        self._patient_pinned_sessions()
         self._patient_fixed_therapists()
         self._patient_no_same_day_therapies()
         self._one_session_per_time()
@@ -388,6 +397,34 @@ class SchedulerModel:
                         constraint = self.model.Add(sum(vars_for_requirement) == required)
                         if assumption is not None:
                             constraint.OnlyEnforceIf(assumption)
+
+    def _patient_pinned_sessions(self) -> None:
+        # Ensure pinned therapy sessions are scheduled at the requested time.
+        for patient in self.instance.patients:
+            if not patient.pinned_sessions:
+                continue
+            for therapy_id, slots in patient.pinned_sessions.items():
+                for slot in slots:
+                    vars_for_slot = [
+                        var
+                        for (
+                            pid,
+                            tid,
+                            _rid,
+                            day,
+                            block,
+                        ), var in self.patient_sessions.items()
+                        if pid == patient.id
+                        and tid == therapy_id
+                        and day == slot.day
+                        and block == slot.block
+                    ]
+                    assumption = self._assumption_for(
+                        f"pinned_session|{patient.id}|{therapy_id}|{slot.day}|{slot.block}"
+                    )
+                    constraint = self.model.Add(sum(vars_for_slot) == 1)
+                    if assumption is not None:
+                        constraint.OnlyEnforceIf(assumption)
 
     def _patient_fixed_therapists(self) -> None:
         # Ensure fixed therapists staff sessions a patient attends.
@@ -772,6 +809,16 @@ class SchedulerModel:
                 f"Patient {parts[1]} fixed therapist {parts[4]} "
                 f"for therapy '{parts[2]}' specialty '{parts[3]}'."
             )
+        if kind == "pinned_session" and len(parts) >= 5:
+            time_range = parts[4]
+            try:
+                time_range = block_to_range(int(parts[4]))
+            except (ValueError, TypeError):
+                pass
+            return (
+                f"Patient {parts[1]} pinned therapy '{parts[2]}' "
+                f"on {parts[3]} {time_range}."
+            )
         return label
 
     def _diagnose_with_soft_constraints(self) -> List[str]:
@@ -951,6 +998,22 @@ class SchedulerModel:
                                 f"Patient {patient.id} requires therapist {therapist_id} for '{therapy_id}' "
                                 f"({specialty}), but there are no slots where both are available in compatible rooms."
                             )
+
+        for patient in self.instance.patients:
+            for therapy_id, slots in patient.pinned_sessions.items():
+                for slot in slots:
+                    has_slot = any(
+                        pid == patient.id
+                        and tid == therapy_id
+                        and day == slot.day
+                        and block == slot.block
+                        for (pid, tid, _rid, day, block), _var in self.patient_sessions.items()
+                    )
+                    if not has_slot:
+                        messages.append(
+                            f"Patient {patient.id} pins '{therapy_id}' on {slot.day} {block_to_range(slot.block)}, "
+                            "but no feasible slot exists."
+                        )
 
         for patient in self.instance.patients:
             for therapy_id, required in patient.therapies.items():

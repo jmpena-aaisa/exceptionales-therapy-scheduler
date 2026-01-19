@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
-from .time_utils import DAY_ORDER, availability_to_blocks_per_day
+from .time_utils import BLOCKS, DAY_ORDER, availability_to_blocks_per_day, range_to_block
 
 
 @dataclass
@@ -23,6 +23,13 @@ class Patient:
     max_continuous_hours: int = 3
     no_same_day_therapies: Set[str] = field(default_factory=set)
     fixed_therapists: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)
+    pinned_sessions: Dict[str, List["PinnedSession"]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PinnedSession:
+    day: str
+    block: int
 
 
 @dataclass
@@ -107,6 +114,9 @@ def load_instance(path: Path) -> Instance:
             no_same_day_therapies=set(patient.get("no_same_day_therapies", [])),
             fixed_therapists=_parse_fixed_therapists(
                 patient.get("fixed_therapists") or patient.get("fixedTherapists", {})
+            ),
+            pinned_sessions=_parse_pinned_sessions(
+                patient.get("pinned_sessions") or patient.get("pinnedSessions", {})
             ),
         )
         for patient in data.get("patients", [])
@@ -223,6 +233,58 @@ def _validate_instance(
                 raise ValueError(
                     f"Unknown therapy '{therapy_id}' in no_same_day_therapies for patient {patient.id}."
                 )
+        for therapy_id, slots in patient.pinned_sessions.items():
+            if therapy_id not in therapies:
+                raise ValueError(
+                    f"Unknown therapy '{therapy_id}' in pinned sessions for patient {patient.id}."
+                )
+            required = patient.therapies.get(therapy_id, 0)
+            if required <= 0:
+                raise ValueError(
+                    f"Patient {patient.id} pins sessions for '{therapy_id}' but requires none."
+                )
+            if len(slots) > required:
+                raise ValueError(
+                    f"Patient {patient.id} pins {len(slots)} '{therapy_id}' sessions but requires {required}."
+                )
+            seen: Set[Tuple[str, int]] = set()
+            for slot in slots:
+                if slot.day not in DAY_ORDER:
+                    raise ValueError(
+                        f"Patient {patient.id} pins '{therapy_id}' on invalid day '{slot.day}'."
+                    )
+                if slot.block not in BLOCKS:
+                    raise ValueError(
+                        f"Patient {patient.id} pins '{therapy_id}' on invalid block '{slot.block}'."
+                    )
+                key = (slot.day, slot.block)
+                if key in seen:
+                    raise ValueError(
+                        f"Patient {patient.id} repeats pinned '{therapy_id}' on {slot.day} block {slot.block}."
+                    )
+                seen.add(key)
+
+
+def _parse_pinned_sessions(raw: object) -> Dict[str, List[PinnedSession]]:
+    pinned_sessions: Dict[str, List[PinnedSession]] = {}
+    if not isinstance(raw, dict):
+        return pinned_sessions
+    for therapy_id, slots in raw.items():
+        if not isinstance(slots, list):
+            continue
+        items: List[PinnedSession] = []
+        for slot in slots:
+            if not isinstance(slot, dict):
+                continue
+            day = str(slot.get("day", "")).strip()
+            time_range = str(slot.get("time", "")).strip()
+            if not day or not time_range:
+                continue
+            block = range_to_block(time_range)
+            items.append(PinnedSession(day=day, block=block))
+        if items:
+            pinned_sessions[str(therapy_id)] = items
+    return pinned_sessions
 
 
 def _parse_fixed_therapists(raw: object) -> Dict[str, Dict[str, List[str]]]:

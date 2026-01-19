@@ -12,7 +12,7 @@ import {
   upsertTherapy,
   upsertTherapist,
 } from '@/lib/api'
-import { formatRequirements } from '@/lib/utils'
+import { downloadFile, formatRequirements } from '@/lib/utils'
 import type { Availability } from '@/lib/utils'
 import type { Entities, Patient, Room, Specialty, Therapist, Therapy } from '@/lib/schema'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { downloadFile } from '@/lib/utils'
 import { AvailabilityGrid } from './availability-grid'
 import { SpecialtySelect } from './specialty-select'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -33,7 +32,13 @@ const ENTITY_KEY = ['entities']
 const NONE_VALUE = '__none__'
 
 type TherapistForm = { id: string; name: string; specialties: string[]; availability: Availability }
-type PatientTherapyForm = { therapy: string; sessions: number; fixedTherapists: Record<string, string[]> }
+type PinnedSlot = { day: string; time: string }
+type PatientTherapyForm = {
+  therapy: string
+  sessions: number
+  fixedTherapists: Record<string, string[]>
+  pinnedSessions: PinnedSlot[]
+}
 type PatientForm = {
   id: string
   name: string
@@ -52,6 +57,18 @@ type TherapyForm = {
 }
 
 const FULL_AVAILABILITY: Availability = buildFullAvailability()
+const PIN_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+const PIN_SLOTS = [
+  '08:00-09:00',
+  '09:00-10:00',
+  '10:00-11:00',
+  '11:00-12:00',
+  '12:00-13:00',
+  '14:00-15:00',
+  '15:00-16:00',
+  '16:00-17:00',
+  '17:00-18:00',
+]
 
 function formFromTherapist(t?: Therapist): TherapistForm {
   return {
@@ -71,6 +88,7 @@ function formFromPatient(p?: Patient): PatientForm {
           therapy,
           sessions,
           fixedTherapists: p.fixedTherapists?.[therapy] ?? {},
+          pinnedSessions: sortPinnedSessions(p.pinnedSessions?.[therapy] ?? []),
         }))
       : [],
     availability: p?.availability ?? FULL_AVAILABILITY,
@@ -143,6 +161,7 @@ export function EntitiesPanel() {
 
   const [openDialog, setOpenDialog] = useState<null | keyof Entities>(null)
   const [editId, setEditId] = useState<string | null>(null)
+  const [pinDialog, setPinDialog] = useState<{ index: number } | null>(null)
 
   const data = useMemo(() => entitiesQuery.data, [entitiesQuery.data])
   const specialtyOptions = useMemo(() => (data?.specialties ?? []).map((s) => s.id), [data])
@@ -163,6 +182,7 @@ export function EntitiesPanel() {
     Object.values(map).forEach((list) => list.sort())
     return map
   }, [data])
+  const activePinRequest = pinDialog ? patientForm.therapies[pinDialog.index] : null
 
   const addTherapyRequirementRow = () => {
     setTherapyForm((prev) => ({
@@ -192,7 +212,10 @@ export function EntitiesPanel() {
     scrollTherapyListRef.current = true
     setPatientForm((prev) => ({
       ...prev,
-      therapies: [...prev.therapies, { therapy: therapyOptions[0] ?? '', sessions: 1, fixedTherapists: {} }],
+      therapies: [
+        ...prev.therapies,
+        { therapy: therapyOptions[0] ?? '', sessions: 1, fixedTherapists: {}, pinnedSessions: [] },
+      ],
     }))
   }
 
@@ -212,9 +235,11 @@ export function EntitiesPanel() {
           const requiredCount = therapyInfo?.requirements?.[specialty] ?? existing.length
           nextFixed[specialty] = existing.slice(0, requiredCount)
         })
-        next[index] = { ...req, therapy: therapyId, fixedTherapists: nextFixed }
+        next[index] = { ...req, therapy: therapyId, fixedTherapists: nextFixed, pinnedSessions: [] }
       } else {
-        next[index] = { ...req, sessions: Number(value) }
+        const sessions = Number(value)
+        const pinnedSessions = req.pinnedSessions.slice(0, Number.isNaN(sessions) ? 0 : sessions)
+        next[index] = { ...req, sessions, pinnedSessions }
       }
       return { ...prev, therapies: next }
     })
@@ -235,6 +260,40 @@ export function EntitiesPanel() {
       if (normalized.length > 0) fixed[specialty] = normalized
       else delete fixed[specialty]
       next[index] = { ...req, fixedTherapists: fixed }
+      return { ...prev, therapies: next }
+    })
+  }
+
+  const addPinnedSession = (index: number, slot: PinnedSlot) => {
+    setPatientForm((prev) => {
+      const next = [...prev.therapies]
+      const req = next[index]
+      if (!req) return prev
+      if (req.pinnedSessions.some((item) => item.day === slot.day && item.time === slot.time)) {
+        return prev
+      }
+      if (req.pinnedSessions.length >= req.sessions) {
+        return prev
+      }
+      const pinnedSessions = sortPinnedSessions([...req.pinnedSessions, slot])
+      next[index] = { ...req, pinnedSessions }
+      return { ...prev, therapies: next }
+    })
+  }
+
+  const handlePinSelect = (slot: PinnedSlot) => {
+    if (!pinDialog) return
+    addPinnedSession(pinDialog.index, slot)
+    setPinDialog(null)
+  }
+
+  const removePinnedSession = (index: number, slotIndex: number) => {
+    setPatientForm((prev) => {
+      const next = [...prev.therapies]
+      const req = next[index]
+      if (!req) return prev
+      const pinnedSessions = req.pinnedSessions.filter((_, idx) => idx !== slotIndex)
+      next[index] = { ...req, pinnedSessions }
       return { ...prev, therapies: next }
     })
   }
@@ -324,6 +383,7 @@ export function EntitiesPanel() {
     setSpecialtyForm(formFromSpecialty())
     setTherapyForm(formFromTherapy())
     setEditId(null)
+    setPinDialog(null)
   }
 
   async function handleTherapistSave() {
@@ -341,6 +401,7 @@ export function EntitiesPanel() {
   async function handlePatientSave() {
     const therapies: Record<string, number> = {}
     const fixedTherapists: Record<string, Record<string, string[]>> = {}
+    const pinnedSessions: Record<string, PinnedSlot[]> = {}
     patientForm.therapies.forEach((req) => {
       if (!req.therapy) return
       const sessions = Number(req.sessions)
@@ -356,6 +417,9 @@ export function EntitiesPanel() {
           fixedTherapists[req.therapy] = normalized
         }
       }
+      if (req.pinnedSessions.length > 0) {
+        pinnedSessions[req.therapy] = req.pinnedSessions.slice(0, sessions)
+      }
     })
     await upsertPatientMutation.mutateAsync({
       id: patientForm.id,
@@ -365,6 +429,7 @@ export function EntitiesPanel() {
       maxContinuousHours: patientForm.maxContinuousHours ? Number(patientForm.maxContinuousHours) : undefined,
       noSameDayTherapies: patientForm.noSameDayTherapies,
       fixedTherapists,
+      pinnedSessions,
     })
     toast.success('Paciente guardado')
     setOpenDialog(null)
@@ -668,7 +733,16 @@ export function EntitiesPanel() {
 
           <TabsContent value="patients">
             <div className="mb-3 flex justify-end">
-              <Dialog open={openDialog === 'patients'} onOpenChange={(open) => (open ? startEdit('patients') : setOpenDialog(null))}>
+              <Dialog
+                open={openDialog === 'patients'}
+                onOpenChange={(open) => {
+                  if (open) startEdit('patients')
+                  else {
+                    setOpenDialog(null)
+                    setPinDialog(null)
+                  }
+                }}
+              >
                 <DialogTrigger asChild>
                   <Button onClick={() => startEdit('patients')}>Añadir paciente</Button>
                 </DialogTrigger>
@@ -777,6 +851,43 @@ export function EntitiesPanel() {
                                   </div>
                                 )
                               })()}
+                              <div className="space-y-2 text-xs text-muted-foreground">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span>
+                                    Horarios fijados ({req.pinnedSessions.length}/{req.sessions || 0})
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setPinDialog({ index: idx })}
+                                    disabled={!req.therapy || req.pinnedSessions.length >= req.sessions}
+                                  >
+                                    Fijar horario
+                                  </Button>
+                                </div>
+                                {req.pinnedSessions.length ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {req.pinnedSessions.map((slot, slotIndex) => (
+                                      <div
+                                        key={`${req.therapy}-${slot.day}-${slot.time}-${slotIndex}`}
+                                        className="flex items-center gap-2 rounded-full border border-border/70 bg-background px-2 py-1 text-[11px] text-muted-foreground"
+                                      >
+                                        <span>{formatPinnedSlot(slot)}</span>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 px-2 text-[10px]"
+                                          onClick={() => removePinnedSession(idx, slotIndex)}
+                                        >
+                                          Quitar
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] text-muted-foreground/70">Sin horarios fijados.</div>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -793,6 +904,34 @@ export function EntitiesPanel() {
                         <p className="text-xs text-muted-foreground">Primero agrega terapias.</p>
                       ) : null}
                     </div>
+                    <Dialog
+                      open={Boolean(pinDialog)}
+                      onOpenChange={(open) => {
+                        if (!open) setPinDialog(null)
+                      }}
+                    >
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>
+                            {activePinRequest?.therapy ? `Fijar horario para ${activePinRequest.therapy}` : 'Fijar horario'}
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-3">
+                          <p className="text-xs text-muted-foreground">
+                            Selecciona un dia y una hora para fijar esta terapia.
+                          </p>
+                          <PinnedSessionPicker
+                            pinnedSessions={activePinRequest?.pinnedSessions ?? []}
+                            onSelect={handlePinSelect}
+                          />
+                          <div className="flex justify-end">
+                            <Button variant="ghost" onClick={() => setPinDialog(null)}>
+                              Cerrar
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                     <div className="space-y-2">
                       <Label>Disponibilidad</Label>
                       <AvailabilityGrid
@@ -976,6 +1115,75 @@ function RowActions({ onEdit, onDelete }: RowActionsProps) {
       <Button variant="ghost" size="sm" onClick={onDelete}>
         Eliminar
       </Button>
+    </div>
+  )
+}
+
+function formatPinnedSlot(slot: PinnedSlot): string {
+  return `${slot.day} ${slot.time.replace(':00', '')}`
+}
+
+function sortPinnedSessions(sessions: PinnedSlot[]): PinnedSlot[] {
+  const dayOrder = new Map(PIN_DAYS.map((day, idx) => [day, idx]))
+  const slotOrder = new Map(PIN_SLOTS.map((slot, idx) => [slot, idx]))
+  return [...sessions].sort((a, b) => {
+    const dayDiff = (dayOrder.get(a.day) ?? 99) - (dayOrder.get(b.day) ?? 99)
+    if (dayDiff !== 0) return dayDiff
+    return (slotOrder.get(a.time) ?? 99) - (slotOrder.get(b.time) ?? 99)
+  })
+}
+
+type PinnedSessionPickerProps = {
+  pinnedSessions: PinnedSlot[]
+  onSelect: (slot: PinnedSlot) => void
+}
+
+function PinnedSessionPicker({ pinnedSessions, onSelect }: PinnedSessionPickerProps) {
+  const [day, setDay] = useState('')
+  const [time, setTime] = useState('')
+  const pinnedSet = useMemo(() => new Set(pinnedSessions.map((slot) => `${slot.day}|${slot.time}`)), [pinnedSessions])
+  const isPinned = Boolean(day && time && pinnedSet.has(`${day}|${time}`))
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Dia</Label>
+          <Select value={day} onValueChange={setDay}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona un dia" />
+            </SelectTrigger>
+            <SelectContent>
+              {PIN_DAYS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Hora</Label>
+          <Select value={time} onValueChange={setTime}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona una hora" />
+            </SelectTrigger>
+            <SelectContent>
+              {PIN_SLOTS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option.replace(':00', '')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{isPinned ? 'Ese horario ya esta fijado.' : 'Selecciona un dia y una hora.'}</span>
+        <Button size="sm" onClick={() => onSelect({ day, time })} disabled={!day || !time || isPinned}>
+          Agregar
+        </Button>
+      </div>
     </div>
   )
 }

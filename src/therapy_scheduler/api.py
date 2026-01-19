@@ -24,11 +24,11 @@ from .auth import (
     verify_password,
     verify_token,
 )
-from .data_loader import Instance, Patient, Room, TherapyInfo, Therapist
+from .data_loader import Instance, Patient, PinnedSession, Room, TherapyInfo, Therapist
 from .excel_writer import export_excel
 from .model import ObjectiveWeights, SchedulerModel, SolverOptions
 from .storage import BaseStorage, StorageError, get_storage, session_prefix, validate_id
-from .time_utils import availability_to_blocks_per_day
+from .time_utils import DAY_ORDER, availability_to_blocks_per_day, range_to_block
 
 
 # ---------- Pydantic input/output models ----------
@@ -48,6 +48,11 @@ class TherapistPayload(BaseModel):
     availability: Optional[Availability] = None
 
 
+class PinnedSessionPayload(BaseModel):
+    day: str
+    time: str
+
+
 class PatientPayload(BaseModel):
     id: str
     name: Optional[str] = None
@@ -56,6 +61,7 @@ class PatientPayload(BaseModel):
     maxContinuousHours: Optional[int] = None
     noSameDayTherapies: List[str] = Field(default_factory=list)
     fixedTherapists: Dict[str, Dict[str, List[str]]] = Field(default_factory=dict)
+    pinnedSessions: Dict[str, List[PinnedSessionPayload]] = Field(default_factory=dict)
 
 
 class RoomPayload(BaseModel):
@@ -136,6 +142,51 @@ class LoginResponse(BaseModel):
 # ---------- Converters ----------
 
 
+def _parse_pinned_sessions(patient: PatientPayload) -> Dict[str, List[PinnedSession]]:
+    pinned: Dict[str, List[PinnedSession]] = {}
+    for therapy_id, slots in patient.pinnedSessions.items():
+        if not isinstance(slots, list):
+            continue
+        items: List[PinnedSession] = []
+        for slot in slots:
+            day = str(slot.day).strip()
+            time_range = str(slot.time).strip()
+            if not day or not time_range:
+                continue
+            if day not in DAY_ORDER:
+                raise ValueError(
+                    f"Patient {patient.id} pins '{therapy_id}' on invalid day '{day}'."
+                )
+            try:
+                block = range_to_block(time_range)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Patient {patient.id} pins '{therapy_id}' on invalid time '{time_range}'."
+                ) from exc
+            items.append(PinnedSession(day=day, block=block))
+        if items:
+            pinned[therapy_id] = items
+    for therapy_id, slots in pinned.items():
+        required = patient.therapies.get(therapy_id, 0)
+        if required <= 0:
+            raise ValueError(
+                f"Patient {patient.id} pins sessions for '{therapy_id}' but requires none."
+            )
+        if len(slots) > required:
+            raise ValueError(
+                f"Patient {patient.id} pins {len(slots)} '{therapy_id}' sessions but requires {required}."
+            )
+        seen: set[tuple[str, int]] = set()
+        for slot in slots:
+            key = (slot.day, slot.block)
+            if key in seen:
+                raise ValueError(
+                    f"Patient {patient.id} repeats pinned '{therapy_id}' on {slot.day} block {slot.block}."
+                )
+            seen.add(key)
+    return pinned
+
+
 def payload_to_instance(payload: EntitiesPayload) -> Instance:
     specialties = {s.id for s in payload.specialties}
     therapies = {
@@ -164,6 +215,7 @@ def payload_to_instance(payload: EntitiesPayload) -> Instance:
             max_continuous_hours=p.maxContinuousHours or 3,
             no_same_day_therapies=set(p.noSameDayTherapies),
             fixed_therapists=p.fixedTherapists,
+            pinned_sessions=_parse_pinned_sessions(p),
         )
         for p in payload.patients
     ]
@@ -324,7 +376,10 @@ def run_solver_endpoint(req: RunRequest, user: AuthUser = Depends(get_current_us
     except StorageError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    instance = payload_to_instance(req.entities)
+    try:
+        instance = payload_to_instance(req.entities)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     objective_weights = ObjectiveWeights(
         patient_days_weight=req.patientDaysWeight or 1,
