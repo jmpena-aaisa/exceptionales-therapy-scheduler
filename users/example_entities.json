@@ -1,0 +1,214 @@
+{
+  "_comment": [
+    "Example entities.json showing the full structure supported by load_instance in data_loader.py.",
+    "Unknown keys like _comment are ignored by the loader and are used here for documentation.",
+    "This file uses snake_case field names; the API payload uses camelCase (see _comment_alt_shapes)."
+  ],
+  "therapists": [
+    {
+      "_comment": [
+        "id must be unique across therapists and referenced by patients in fixed_therapists.",
+        "specialties must exist in the top-level specialties list.",
+        "availability days must be Monday..Friday; values are time ranges like HH:MM-HH:MM.",
+        "Availability ranges can be broad (ex: 08:00-13:00); blocks are 08-13 and 14-18."
+      ],
+      "id": "therapist_k1",
+      "name": "Javi",
+      "specialties": [
+        "kine",
+        "speech"
+      ],
+      "availability": {
+        "Monday": [
+          "08:00-13:00",
+          "14:00-18:00"
+        ],
+        "Wednesday": [
+          "09:00-12:00"
+        ]
+      }
+    },
+    {
+      "_comment": [
+        "If availability is empty or missing, the therapist can never be scheduled."
+      ],
+      "id": "therapist_s1",
+      "name": "Marta",
+      "specialties": [
+        "speech"
+      ],
+      "availability": {
+        "Tuesday": [
+          "08:00-11:00",
+          "15:00-18:00"
+        ],
+        "Thursday": [
+          "08:00-13:00"
+        ]
+      }
+    }
+  ],
+  "patients": [
+    {
+      "_comment": [
+        "therapies maps therapy_id -> required number of sessions in the period (0 allowed).",
+        "availability uses the same format as therapists; only those blocks can be scheduled.",
+        "max_continuous_hours limits sessions in any 4-block sliding window per day (default 3).",
+        "no_same_day_therapies enforces at most one session per day for listed therapies.",
+        "fixed_therapists pins therapist(s) for a specialty within a therapy.",
+        "pinned_sessions pins exact day+time for specific sessions (times must be exact block ranges)."
+      ],
+      "id": "patient_a1",
+      "name": "Agus",
+      "therapies": {
+        "kine_1": 2,
+        "speech_1": 1
+      },
+      "availability": {
+        "Monday": [
+          "08:00-12:00",
+          "15:00-18:00"
+        ],
+        "Wednesday": [
+          "08:00-13:00"
+        ],
+        "Friday": [
+          "14:00-18:00"
+        ]
+      },
+      "max_continuous_hours": 2,
+      "no_same_day_therapies": [
+        "kine_1"
+      ],
+      "fixed_therapists": {
+        "kine_1": {
+          "kine": [
+            "therapist_k1"
+          ]
+        },
+        "speech_1": {
+          "speech": [
+            "therapist_s1"
+          ]
+        }
+      },
+      "pinned_sessions": {
+        "kine_1": [
+          {
+            "day": "Monday",
+            "time": "08:00-09:00"
+          }
+        ],
+        "speech_1": [
+          {
+            "day": "Friday",
+            "time": "17:00-18:00"
+          }
+        ]
+      },
+      "_comment_fixed_therapists": [
+        "fixed_therapists format: {therapy_id: {specialty: [therapist_id...]}}.",
+        "A value can also be a single string; it will be normalized to a list.",
+        "The number of fixed therapists must be <= the required count for that specialty.",
+        "Therapist IDs must exist and include the given specialty."
+      ],
+      "_comment_pinned_sessions": [
+        "Pinned times must be exact block ranges:",
+        "08:00-09:00, 09:00-10:00, 10:00-11:00, 11:00-12:00, 12:00-13:00,",
+        "14:00-15:00, 15:00-16:00, 16:00-17:00, 17:00-18:00.",
+        "Pinned count cannot exceed therapies[therapy_id] and the therapy must be required (>0)."
+      ]
+    },
+    {
+      "_comment": [
+        "Patient with a single therapy and no extra restrictions."
+      ],
+      "id": "patient_b1",
+      "name": "Luis",
+      "therapies": {
+        "kine_1": 1
+      },
+      "availability": {
+        "Tuesday": [
+          "08:00-14:00"
+        ],
+        "Thursday": [
+          "14:00-18:00"
+        ]
+      }
+    }
+  ],
+  "rooms": [
+    {
+      "_comment": [
+        "therapies lists which therapies can run in the room.",
+        "capacity caps max patients per session along with therapy.max_patients.",
+        "availability is currently ignored by the solver and can be omitted."
+      ],
+      "id": "room_1",
+      "name": "Gym",
+      "therapies": [
+        "kine_1",
+        "speech_1"
+      ],
+      "capacity": 4,
+      "availability": {
+        "Monday": [
+          "08:00-18:00"
+        ],
+        "Wednesday": [
+          "08:00-18:00"
+        ]
+      }
+    },
+    {
+      "id": "room_2",
+      "name": "Small Office",
+      "therapies": [
+        "speech_1"
+      ],
+      "capacity": 1
+    }
+  ],
+  "specialties": [
+    {
+      "_comment": [
+        "specialties can be objects with id or a list of strings.",
+        "All therapist specialties and therapy requirements must appear here."
+      ],
+      "id": "kine"
+    },
+    {
+      "id": "speech"
+    }
+  ],
+  "therapies": [
+    {
+      "_comment": [
+        "requirements maps specialty -> number of therapists required per session.",
+        "min_patients/max_patients apply per session; actual max is min(max_patients, room.capacity)."
+      ],
+      "id": "kine_1",
+      "requirements": {
+        "kine": 1
+      },
+      "min_patients": 1,
+      "max_patients": 4
+    },
+    {
+      "id": "speech_1",
+      "requirements": {
+        "speech": 1
+      },
+      "min_patients": 1,
+      "max_patients": 2
+    }
+  ],
+  "_comment_alt_shapes": [
+    "Alternative shapes accepted by data_loader:",
+    "specialties can be {\"kine\": {}, \"speech\": {}} or [\"kine\", \"speech\"].",
+    "therapies can be {\"kine_1\": {\"requirements\": {\"kine\": 1}, \"min_patients\": 1, \"max_patients\": 4}}.",
+    "pinned_sessions and fixed_therapists also accept camelCase keys (pinnedSessions, fixedTherapists).",
+    "API payloads use camelCase for patient fields (maxContinuousHours, noSameDayTherapies, minPatients, maxPatients)."
+  ]
+}

@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function RunModelPanel() {
   const { result, setResult } = useScheduleStore()
@@ -75,18 +74,18 @@ export function RunModelPanel() {
         ) : null}
       </CardContent>
       <Dialog open={showDiagnostics} onOpenChange={setShowDiagnostics}>
-        <DialogContent className="max-h-[85vh] overflow-hidden">
+        <DialogContent className="max-h-[85vh]">
           <DialogHeader>
             <DialogTitle>Diagnóstico de inviabilidad</DialogTitle>
             <DialogDescription>
               Resultados de las 3 estrategias: núcleo por supuestos, prechequeos y holguras.
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[60vh] w-full pr-3" type="always">
+          <div className="mt-3 space-y-4">
             {renderDiagnosticSection('Holguras mínimas', diagnosticsByMethod.soft)}
             {renderDiagnosticSection('Prechequeos', diagnosticsByMethod.prechecks)}
             {renderDiagnosticSection('Núcleo por supuestos', diagnosticsByMethod.assumptions)}
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
     </Card>

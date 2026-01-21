@@ -770,11 +770,26 @@ class SchedulerModel:
         core = solver.sufficient_assumptions_for_infeasibility()
         if not core:
             return ["Assumption core empty: infeasibility comes from unconditional constraints."]
+        demand_sessions_by_therapy: Dict[str, int] = {}
+        for patient in diagnostic.instance.patients:
+            for therapy_id, required in patient.therapies.items():
+                if required > 0:
+                    demand_sessions_by_therapy[therapy_id] = (
+                        demand_sessions_by_therapy.get(therapy_id, 0) + required
+                    )
+        skip_therapy_ids = {
+            therapy_id
+            for therapy_id, therapy in diagnostic.instance.therapies.items()
+            if demand_sessions_by_therapy.get(therapy_id, 0) == 0
+            and therapy.min_patients > 0
+        }
         messages: List[str] = []
         for literal in core:
             label = diagnostic._label_for_literal(literal)
             if not label:
                 messages.append(f"Unknown assumption literal {literal}.")
+            elif diagnostic._skip_assumption_label(label, skip_therapy_ids):
+                continue
             else:
                 messages.append(diagnostic._format_assumption_label(label))
         return messages
@@ -820,6 +835,15 @@ class SchedulerModel:
                 f"on {parts[3]} {time_range}."
             )
         return label
+
+    def _skip_assumption_label(self, label: str, skip_therapies: Set[str]) -> bool:
+        parts = label.split("|")
+        if not parts:
+            return False
+        kind = parts[0]
+        if kind in ("session_capacity", "staffing") and len(parts) >= 2:
+            return parts[1] in skip_therapies
+        return False
 
     def _diagnose_with_soft_constraints(self) -> List[str]:
         diagnostic = SchedulerModel(
@@ -906,8 +930,12 @@ class SchedulerModel:
         therapy_slots_by_day: Dict[Tuple[str, str, str], int] = {}
         therapy_global_slots: Dict[str, int] = {}
         staff_slots: Dict[Tuple[str, str], int] = {}
+        staff_slots_by_session: Dict[Tuple[str, str, str, int, str], int] = {}
         rooms_by_therapy: Dict[str, List[str]] = {}
         required_patients_by_therapy: Dict[str, int] = {}
+        demand_sessions_by_therapy: Dict[str, int] = {}
+        patients_by_therapy: Dict[str, Set[str]] = {}
+        patients_by_session: Dict[SessionKey, Set[str]] = {}
         therapist_by_id = {therapist.id: therapist for therapist in self.instance.therapists}
 
         for room in self.instance.rooms:
@@ -915,11 +943,37 @@ class SchedulerModel:
                 rooms_by_therapy.setdefault(therapy_id, []).append(room.id)
 
         for patient in self.instance.patients:
+            total_required = 0
             for therapy_id, required in patient.therapies.items():
                 if required > 0:
+                    total_required += required
                     required_patients_by_therapy[therapy_id] = (
                         required_patients_by_therapy.get(therapy_id, 0) + 1
                     )
+                    demand_sessions_by_therapy[therapy_id] = (
+                        demand_sessions_by_therapy.get(therapy_id, 0) + required
+                    )
+                    patients_by_therapy.setdefault(therapy_id, set()).add(patient.id)
+            if total_required > 0:
+                available_blocks: Set[Tuple[str, int]] = set()
+                for day, blocks in patient.availability.items():
+                    for block in blocks:
+                        available_blocks.add((day, block))
+                for slots in patient.pinned_sessions.values():
+                    for slot in slots:
+                        available_blocks.add((slot.day, slot.block))
+                if total_required > len(available_blocks):
+                    messages.append(
+                        f"Patient {patient.id} requires {total_required} total session(s) but only "
+                        f"{len(available_blocks)} available time block(s)."
+                    )
+
+        skip_therapy_ids = {
+            therapy_id
+            for therapy_id, therapy in self.instance.therapies.items()
+            if demand_sessions_by_therapy.get(therapy_id, 0) == 0
+            and therapy.min_patients > 0
+        }
 
         for (pid, tid, _rid, day, _block), _var in self.patient_sessions.items():
             therapy_slots_total[(pid, tid)] = therapy_slots_total.get((pid, tid), 0) + 1
@@ -927,9 +981,37 @@ class SchedulerModel:
                 therapy_slots_by_day.get((pid, tid, day), 0) + 1
             )
             therapy_global_slots[tid] = therapy_global_slots.get(tid, 0) + 1
+            patients_by_session.setdefault((tid, _rid, day, _block), set()).add(pid)
 
-        for (_tid, therapy_id, _rid, _day, _block, specialty), _var in self.staffing.items():
+        for (_tid, therapy_id, rid, day, block, specialty), _var in self.staffing.items():
             staff_slots[(therapy_id, specialty)] = staff_slots.get((therapy_id, specialty), 0) + 1
+            staff_slots_by_session[(therapy_id, rid, day, block, specialty)] = (
+                staff_slots_by_session.get((therapy_id, rid, day, block, specialty), 0)
+                + 1
+            )
+
+        staffed_sessions: Set[SessionKey] = set()
+        for (therapy_id, room_id, day, block) in self.session_active.keys():
+            therapy_info = self.instance.therapies[therapy_id]
+            if all(
+                staff_slots_by_session.get((therapy_id, room_id, day, block, specialty), 0)
+                >= required
+                for specialty, required in therapy_info.requirements.items()
+            ):
+                staffed_sessions.add((therapy_id, room_id, day, block))
+
+        patient_has_staffed_slot: Dict[Tuple[str, str], bool] = {}
+        for (pid, tid, rid, day, block), _var in self.patient_sessions.items():
+            if (tid, rid, day, block) in staffed_sessions:
+                patient_has_staffed_slot[(pid, tid)] = True
+
+        staffed_sessions_by_therapy: Dict[str, List[SessionKey]] = {}
+        for key in staffed_sessions:
+            staffed_sessions_by_therapy.setdefault(key[0], []).append(key)
+
+        patient_count_by_session = {
+            key: len(patients) for key, patients in patients_by_session.items()
+        }
 
         for patient in self.instance.patients:
             for therapy_id, fixed in patient.fixed_therapists.items():
@@ -1019,6 +1101,11 @@ class SchedulerModel:
             for therapy_id, required in patient.therapies.items():
                 if required <= 0:
                     continue
+                if not patient_has_staffed_slot.get((patient.id, therapy_id), False):
+                    messages.append(
+                        f"Patient {patient.id} has no feasible staff+room overlap for "
+                        f"therapy '{therapy_id}'."
+                    )
                 rooms_for_therapy = rooms_by_therapy.get(therapy_id, [])
                 availability_blocks = sum(
                     len(blocks) for blocks in patient.availability.values()
@@ -1063,6 +1150,8 @@ class SchedulerModel:
                             )
 
         for therapy_id, therapy in self.instance.therapies.items():
+            if therapy_id in skip_therapy_ids:
+                continue
             rooms_for_therapy = rooms_by_therapy.get(therapy_id, [])
             if not rooms_for_therapy:
                 messages.append(
@@ -1081,6 +1170,63 @@ class SchedulerModel:
                     messages.append(
                         f"No feasible staff slots for therapy '{therapy_id}' specialty '{specialty}'."
                     )
+            demand_sessions = demand_sessions_by_therapy.get(therapy_id, 0)
+            if demand_sessions <= 0:
+                continue
+            staffed_sessions_for_therapy = staffed_sessions_by_therapy.get(therapy_id, [])
+            if not staffed_sessions_for_therapy:
+                messages.append(
+                    f"Therapy '{therapy_id}' has no staffed slots where all required specialties overlap."
+                )
+                continue
+            unique_patients = len(patients_by_therapy.get(therapy_id, set()))
+            if unique_patients < therapy.min_patients:
+                messages.append(
+                    f"Therapy '{therapy_id}' requires at least {therapy.min_patients} patient(s) "
+                    f"per session but only {unique_patients} patient(s) request it."
+                )
+            slots_with_min = sum(
+                1
+                for key in staffed_sessions_for_therapy
+                if patient_count_by_session.get(key, 0) >= therapy.min_patients
+            )
+            max_available = max(
+                (patient_count_by_session.get(key, 0) for key in staffed_sessions_for_therapy),
+                default=0,
+            )
+            if slots_with_min == 0:
+                messages.append(
+                    f"Therapy '{therapy_id}' needs at least {therapy.min_patients} patient(s) per session "
+                    f"but the max available at any staffed slot is {max_available}."
+                )
+            if therapy.max_patients == 1:
+                slots_with_any = sum(
+                    1
+                    for key in staffed_sessions_for_therapy
+                    if patient_count_by_session.get(key, 0) >= 1
+                )
+                if demand_sessions > slots_with_any:
+                    messages.append(
+                        f"Therapy '{therapy_id}' needs {demand_sessions} 1:1 session(s) but only "
+                        f"{slots_with_any} staffed slot(s) have any available patient."
+                    )
+            else:
+                capacity_upper = sum(
+                    min(therapy.max_patients, patient_count_by_session.get(key, 0))
+                    for key in staffed_sessions_for_therapy
+                )
+                if capacity_upper < demand_sessions:
+                    messages.append(
+                        f"Therapy '{therapy_id}' demand {demand_sessions} exceeds "
+                        f"the upper bound capacity {capacity_upper} across staffed slots."
+                    )
+                if slots_with_min > 0:
+                    min_sessions = (demand_sessions + therapy.max_patients - 1) // therapy.max_patients
+                    if slots_with_min < min_sessions:
+                        messages.append(
+                            f"Therapy '{therapy_id}' needs at least {min_sessions} session(s) but only "
+                            f"{slots_with_min} staffed slot(s) meet the minimum patients."
+                        )
 
         if not messages:
             messages.append(
