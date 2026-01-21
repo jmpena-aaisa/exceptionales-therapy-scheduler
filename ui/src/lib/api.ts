@@ -3,10 +3,12 @@ import {
   importPayloadSchema,
   loginResponseSchema,
   scheduleResultSchema,
+  runSummaryListSchema,
   type Entities,
   type ImportPayload,
   type LoginResponse,
   type ScheduleResult,
+  type RunSummary,
   type Therapist,
   type Patient,
   type Room,
@@ -185,6 +187,43 @@ export async function runModel(): Promise<ScheduleResult> {
   }
   const json = await response.json()
   return scheduleResultSchema.parse(json)
+}
+
+export async function getResults(sessionId?: string): Promise<ScheduleResult> {
+  const url = new URL(`${API_BASE}/api/results`)
+  if (sessionId) {
+    url.searchParams.set('sessionId', sessionId)
+  }
+  const response = await fetch(url.toString(), { headers: buildAuthHeaders() })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || 'No se pudo cargar el resultado.')
+  }
+  const json = await response.json()
+  return scheduleResultSchema.parse(json)
+}
+
+export async function fetchRuns(limit = 20): Promise<RunSummary[]> {
+  const url = new URL(`${API_BASE}/api/runs`)
+  url.searchParams.set('limit', limit.toString())
+  const response = await fetch(url.toString(), { headers: buildAuthHeaders() })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || 'No se pudo cargar el historial.')
+  }
+  const json = await response.json()
+  return runSummaryListSchema.parse(json)
+}
+
+export async function deleteRun(sessionId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/runs/${sessionId}`, {
+    method: 'DELETE',
+    headers: buildAuthHeaders(),
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || 'No se pudo eliminar la ejecución.')
+  }
 }
 
 export async function downloadExcel(sessionId?: string): Promise<void> {

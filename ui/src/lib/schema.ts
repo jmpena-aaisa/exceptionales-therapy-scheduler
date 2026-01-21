@@ -99,6 +99,17 @@ export const scheduleResultSchema = z.object({
 
 export type ScheduleResult = z.infer<typeof scheduleResultSchema>
 
+export const runSummarySchema = z.object({
+  sessionId: z.string(),
+  userId: z.string(),
+  status: z.enum(['idle', 'running', 'success', 'failed']),
+  startedAt: z.string(),
+  finishedAt: z.string().optional(),
+})
+
+export const runSummaryListSchema = z.array(runSummarySchema)
+export type RunSummary = z.infer<typeof runSummarySchema>
+
 export const loginResponseSchema = z.object({
   userId: z.string(),
   email: z.string(),

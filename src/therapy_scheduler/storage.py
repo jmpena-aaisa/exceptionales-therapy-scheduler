@@ -5,7 +5,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 
 class StorageError(RuntimeError):
@@ -64,6 +64,12 @@ class BaseStorage:
     def exists(self, key: str) -> bool:
         raise NotImplementedError
 
+    def list_prefix(self, prefix: str) -> List[str]:
+        raise NotImplementedError
+
+    def delete(self, key: str) -> None:
+        raise NotImplementedError
+
     def write_json(self, key: str, payload: object) -> None:
         self.write_text(key, json.dumps(payload, indent=2), content_type="application/json")
 
@@ -100,6 +106,23 @@ class LocalStorage(BaseStorage):
     def exists(self, key: str) -> bool:
         return self._path(key).exists()
 
+    def list_prefix(self, prefix: str) -> List[str]:
+        root = self._path(prefix)
+        if not root.exists():
+            return []
+        if root.is_file():
+            return [str(root.relative_to(self.root))]
+        keys: List[str] = []
+        for path in root.rglob("*"):
+            if path.is_file():
+                keys.append(str(path.relative_to(self.root)))
+        return keys
+
+    def delete(self, key: str) -> None:
+        path = self._path(key)
+        if path.exists():
+            path.unlink()
+
 
 class GCSStorage(BaseStorage):
     def __init__(self, bucket_name: str, prefix: str = "") -> None:
@@ -135,6 +158,30 @@ class GCSStorage(BaseStorage):
     def exists(self, key: str) -> bool:
         blob = self.bucket.blob(self._blob_name(key))
         return blob.exists()
+
+    def list_prefix(self, prefix: str) -> List[str]:
+        if prefix.startswith("/"):
+            raise StorageError(f"Invalid storage key: {prefix}")
+        blob_prefix = self._blob_name(prefix)
+        keys: List[str] = []
+        for blob in self.client.list_blobs(self.bucket, prefix=blob_prefix):
+            name = blob.name
+            if self.prefix:
+                prefix_root = f"{self.prefix}/"
+                if not name.startswith(prefix_root):
+                    continue
+                name = name[len(prefix_root) :]
+            keys.append(name)
+        return keys
+
+    def delete(self, key: str) -> None:
+        from google.api_core.exceptions import NotFound
+
+        blob = self.bucket.blob(self._blob_name(key))
+        try:
+            blob.delete()
+        except NotFound:
+            return
 
 
 def get_storage(settings: Optional[StorageSettings] = None) -> BaseStorage:

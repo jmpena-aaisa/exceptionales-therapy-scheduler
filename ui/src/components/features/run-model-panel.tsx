@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { runModel } from '@/lib/api'
+import { deleteRun, fetchRuns, getResults, runModel } from '@/lib/api'
 import { useScheduleStore } from '@/lib/state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,13 +9,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export function RunModelPanel() {
-  const { result, setResult } = useScheduleStore()
+  const { result, setResult, clearResult } = useScheduleStore()
   const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [busySessionId, setBusySessionId] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  const runsQuery = useQuery({
+    queryKey: ['runs'],
+    queryFn: () => fetchRuns(20),
+  })
 
   const mutation = useMutation({
     mutationFn: runModel,
     onSuccess: (data) => {
       setResult(data)
+      queryClient.invalidateQueries({ queryKey: ['runs'] })
       if (data.status === 'success') {
         toast.success('Modelo ejecutado')
       } else {
@@ -47,6 +55,49 @@ export function RunModelPanel() {
     }
   }, [result.status, result.finishedAt, hasDiagnostics])
 
+  const runs = runsQuery.data ?? []
+
+  const handleViewRun = async (sessionId: string, showDiag: boolean) => {
+    setBusySessionId(sessionId)
+    try {
+      const data = await getResults(sessionId)
+      setResult(data)
+      if (showDiag) {
+        setShowDiagnostics(true)
+      } else {
+        setShowDiagnostics(false)
+      }
+    } catch (error) {
+      toast.error('No se pudo cargar la ejecución.')
+      console.error(error)
+    } finally {
+      setBusySessionId(null)
+    }
+  }
+
+  const handleDeleteRun = async (sessionId: string) => {
+    setBusySessionId(sessionId)
+    try {
+      await deleteRun(sessionId)
+      toast.success('Ejecución eliminada')
+      queryClient.invalidateQueries({ queryKey: ['runs'] })
+      if (result.sessionId === sessionId) {
+        try {
+          const latest = await getResults()
+          setResult(latest)
+        } catch (error) {
+          clearResult()
+          console.error(error)
+        }
+      }
+    } catch (error) {
+      toast.error('No se pudo eliminar la ejecución.')
+      console.error(error)
+    } finally {
+      setBusySessionId(null)
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -72,6 +123,67 @@ export function RunModelPanel() {
             </Button>
           </div>
         ) : null}
+        <div className="mt-5 border-t border-border/60 pt-4">
+          <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Historial de ejecuciones</div>
+          {runsQuery.isError ? (
+            <p>No se pudo cargar el historial.</p>
+          ) : runsQuery.isLoading ? (
+            <p>Cargando historial...</p>
+          ) : runs.length === 0 ? (
+            <p>No hay ejecuciones previas.</p>
+          ) : (
+            <div className="space-y-2">
+              {runs.map((run) => {
+                const isActive = result.sessionId === run.sessionId
+                const runStatus =
+                  run.status === 'success'
+                    ? { text: 'OK', variant: 'success' as const }
+                    : run.status === 'failed'
+                      ? { text: 'Error', variant: 'destructive' as const }
+                      : run.status === 'running'
+                        ? { text: 'En progreso', variant: 'warning' as const }
+                        : { text: 'Sin ejecutar', variant: 'outline' as const }
+                const isBusy = busySessionId === run.sessionId
+                return (
+                  <div
+                    key={run.sessionId}
+                    className={`rounded-lg border border-border/60 px-3 py-3 ${isActive ? 'bg-secondary/60' : 'bg-white/70'}`}
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={runStatus.variant}>{runStatus.text}</Badge>
+                          <span className="text-xs text-muted-foreground">ID {run.sessionId.slice(0, 8)}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Inicio: {new Date(run.startedAt).toLocaleString()}
+                        </div>
+                        {run.finishedAt ? (
+                          <div className="text-xs text-muted-foreground">
+                            Finalizó: {new Date(run.finishedAt).toLocaleString()}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewRun(run.sessionId, run.status !== 'success')}
+                          disabled={isBusy}
+                        >
+                          {run.status === 'success' ? 'Ver resultados' : 'Ver diagnóstico'}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteRun(run.sessionId)} disabled={isBusy}>
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </CardContent>
       <Dialog open={showDiagnostics} onOpenChange={setShowDiagnostics}>
         <DialogContent className="max-h-[85vh]">

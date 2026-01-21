@@ -126,6 +126,14 @@ class ScheduleResponse(BaseModel):
     sessions: List[ScheduleSession] = Field(default_factory=list)
 
 
+class RunSummary(BaseModel):
+    sessionId: str
+    userId: str
+    status: str
+    startedAt: str
+    finishedAt: Optional[str] = None
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -359,6 +367,24 @@ def resolve_entities_key(user_id: str) -> str:
     return f"users/{user_id}/entities.json"
 
 
+def list_run_summaries(user_id: str) -> List[RunSummary]:
+    prefix = f"sessions/{user_id}"
+    try:
+        keys = storage.list_prefix(prefix)
+    except StorageError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    meta_keys = [key for key in keys if key.endswith("/meta.json")]
+    runs: List[RunSummary] = []
+    for key in meta_keys:
+        try:
+            payload = storage.read_json(key)
+            runs.append(RunSummary.model_validate(payload))
+        except Exception:
+            continue
+    runs.sort(key=lambda item: item.finishedAt or item.startedAt or "", reverse=True)
+    return runs
+
+
 @app.post("/api/run", response_model=ScheduleResponse)
 def run_solver_endpoint(req: RunRequest, user: AuthUser = Depends(get_current_user)) -> ScheduleResponse:
     session_id = uuid.uuid4().hex
@@ -488,6 +514,53 @@ def get_results(
         return ScheduleResponse(**payload)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Invalid schedule file: {exc}") from exc
+
+
+@app.get("/api/runs", response_model=List[RunSummary])
+def list_runs(
+    limit: int = Query(default=20, ge=1, le=100),
+    user: AuthUser = Depends(get_current_user),
+) -> List[RunSummary]:
+    runs = list_run_summaries(user.user_id)
+    return runs[:limit]
+
+
+@app.delete("/api/runs/{session_id}", status_code=status.HTTP_200_OK)
+def delete_run(session_id: str, user: AuthUser = Depends(get_current_user)) -> Dict[str, bool]:
+    session_root = resolve_session_root(user.user_id, session_id)
+    try:
+        keys = storage.list_prefix(session_root)
+    except StorageError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    if not keys:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    for key in keys:
+        try:
+            storage.delete(key)
+        except StorageError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    latest_key = f"sessions/{user.user_id}/latest.json"
+    if storage.exists(latest_key):
+        try:
+            latest = storage.read_json(latest_key)
+        except Exception:
+            latest = None
+        latest_id = str(latest.get("sessionId", "")).strip() if isinstance(latest, dict) else ""
+        if latest_id == session_id:
+            runs = list_run_summaries(user.user_id)
+            if runs:
+                updated_at = runs[0].finishedAt or runs[0].startedAt
+                try:
+                    storage.write_json(latest_key, {"sessionId": runs[0].sessionId, "updatedAt": updated_at})
+                except StorageError as exc:
+                    raise HTTPException(status_code=500, detail=str(exc)) from exc
+            else:
+                try:
+                    storage.delete(latest_key)
+                except StorageError as exc:
+                    raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"deleted": True}
 
 
 @app.get("/api/download/excel")

@@ -8,8 +8,17 @@ AUTH_EMAIL ?= text
 AUTH_PASSWORD ?= 12345
 AUTH_TOKEN ?=
 API_TEST_INSTANCE ?= data/schedule_params/api_smoke_instance.json
-GCP_PROJECT ?=
-GCP_REGION ?= us-central1
+TFVARS ?= infra/terraform/terraform.tfvars
+TFVARS_EXAMPLE ?= infra/terraform/terraform.tfvars.example
+TFVARS_SOURCE := $(firstword $(wildcard $(TFVARS)) $(TFVARS_EXAMPLE))
+TF_PROJECT := $(shell sed -n 's/^project_id *= *"\(.*\)"/\1/p' $(TFVARS_SOURCE) | head -n 1)
+TF_REGION := $(shell sed -n 's/^region *= *"\(.*\)"/\1/p' $(TFVARS_SOURCE) | head -n 1)
+TF_DATA_BUCKET := $(shell sed -n 's/^data_bucket_name *= *"\(.*\)"/\1/p' $(TFVARS_SOURCE) | head -n 1)
+TF_UI_BUCKET := $(shell sed -n 's/^ui_bucket_name *= *"\(.*\)"/\1/p' $(TFVARS_SOURCE) | head -n 1)
+GCP_PROJECT ?= $(TF_PROJECT)
+GCP_REGION ?= $(TF_REGION)
+DATA_BUCKET ?= $(TF_DATA_BUCKET)
+UI_BUCKET ?= $(TF_UI_BUCKET)
 AR_REPO ?= therapy-scheduler
 AR_IMAGE ?= therapy-scheduler-api
 AR_TAG ?= latest
@@ -17,12 +26,16 @@ AR_IMAGE_URI ?= $(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/$(AR_REPO)/$(AR_IMAG
 TF_DIR ?= infra/terraform
 TERRAFORM_APPLY_ARGS ?= -var image_tag=$(AR_TAG)
 
-.PHONY: optimize docker-build docker-run run-local api api-test api-image-push cloud-run-deploy ui-install ui-build ui-dev ui-preview
+.PHONY: optimize docker-build docker-run run-local api api-build api-test api-image-push cloud-run-deploy ui-install ui-build ui-dev ui-preview ui-deploy
 
 optimize: docker-build docker-run
 
 docker-build:
 	docker build -t $(IMAGE):$(TAG) .
+
+api-build:
+	@if [ -z "$(GCP_PROJECT)" ]; then echo "Set GCP_PROJECT before running this target."; exit 1; fi
+	docker build -f Dockerfile.api -t $(AR_IMAGE_URI) .
 
 docker-run:
 	docker run --rm \
@@ -100,3 +113,17 @@ ui-dev: ui-install
 
 ui-preview: ui-install
 	cd $(UI_DIR) && $(UI_NPM) run preview
+
+ui-deploy:
+	@API_URL="$(VITE_API_BASE)"; \
+	if [ -z "$$API_URL" ]; then \
+		API_URL=$$(terraform -chdir=$(TF_DIR) output -raw service_url 2>/dev/null); \
+	fi; \
+	if [ -z "$$API_URL" ]; then \
+		echo "Set VITE_API_BASE or ensure terraform output service_url is available."; exit 1; \
+	fi; \
+	if [ -z "$(UI_BUCKET)" ]; then \
+		echo "Set UI_BUCKET or ui_bucket_name in $(TFVARS_SOURCE)."; exit 1; \
+	fi; \
+	VITE_API_BASE="$$API_URL" $(MAKE) ui-build; \
+	gcloud storage rsync -r $(UI_DIR)/dist gs://$(UI_BUCKET)
